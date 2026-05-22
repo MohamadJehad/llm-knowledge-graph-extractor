@@ -1,10 +1,13 @@
 'use client';
 
 // app/page.tsx
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { KGGraph, KGNode, ProviderInfo } from './types';
 import SidePanel from './components/SidePanel';
+import GraphToolbar from './components/GraphToolbar';
+import Legend from './components/Legend';
+import type { GraphCanvasHandle } from './components/GraphCanvas';
 import { SAMPLE_TEXTS } from './samples';
 
 // Cytoscape needs the DOM, so we load it client-only.
@@ -20,6 +23,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<KGNode | null>(null);
   const [providersLoaded, setProvidersLoaded] = useState(false);
+
+  // Graph view state
+  const [layout, setLayout] = useState<string>('cose');
+  const [search, setSearch] = useState<string>('');
+  const [hiddenRelations, setHiddenRelations] = useState<Set<string>>(new Set());
+  // The canvas hands us back an imperative handle via onReady; we hold it in
+  // a ref so toolbar callbacks can call into it without re-rendering.
+  const canvasRef = useRef<GraphCanvasHandle | null>(null);
+  const handleCanvasReady = useCallback((h: GraphCanvasHandle | null) => {
+    canvasRef.current = h;
+  }, []);
 
   // Fetch available providers on mount
   useEffect(() => {
@@ -46,6 +60,21 @@ export default function Home() {
   useEffect(() => {
     if (currentProvider) setModel(currentProvider.defaultModel);
   }, [currentProvider]);
+
+  // Reset graph-view state whenever a new graph is loaded
+  useEffect(() => {
+    setSearch('');
+    setHiddenRelations(new Set());
+    setLayout('cose');
+    setSelectedNode(null);
+  }, [graph]);
+
+  const availableRelations = useMemo(() => {
+    if (!graph) return [];
+    const seen = new Set<string>();
+    for (const e of graph.edges) seen.add(e.relation);
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [graph]);
 
   const handleExtract = async () => {
     if (!text.trim() || !providerId) return;
@@ -112,6 +141,19 @@ export default function Home() {
   const handleBackgroundClick = useCallback(() => {
     setSelectedNode(null);
   }, []);
+
+  const toggleRelation = (rel: string) => {
+    setHiddenRelations((prev) => {
+      const next = new Set(prev);
+      if (next.has(rel)) next.delete(rel);
+      else next.add(rel);
+      return next;
+    });
+  };
+
+  const showAllRelations = () => setHiddenRelations(new Set());
+
+  const hasGraph = graph && graph.nodes.length > 0;
 
   return (
     <div className="app">
@@ -235,6 +277,23 @@ export default function Home() {
             </div>
           </div>
 
+          {hasGraph && (
+            <GraphToolbar
+              layout={layout}
+              onLayoutChange={setLayout}
+              search={search}
+              onSearchChange={setSearch}
+              relations={availableRelations}
+              hiddenRelations={hiddenRelations}
+              onToggleRelation={toggleRelation}
+              onShowAllRelations={showAllRelations}
+              onZoomIn={() => canvasRef.current?.zoomIn()}
+              onZoomOut={() => canvasRef.current?.zoomOut()}
+              onFit={() => canvasRef.current?.fit()}
+              onExportPNG={() => canvasRef.current?.exportPNG()}
+            />
+          )}
+
           {error && <div className="error-banner">⚠ {error}</div>}
 
           <div className="cy-host">
@@ -251,19 +310,28 @@ export default function Home() {
 
             {loading && (
               <div className="loading">
+                <div className="loading-orbit" aria-hidden>
+                  <span /><span /><span />
+                </div>
                 <div className="loading-text">Extracting knowledge</div>
               </div>
             )}
 
-            {graph && graph.nodes.length > 0 && (
+            {hasGraph && graph && (
               <GraphCanvas
                 graph={graph}
+                layoutName={layout}
+                hiddenRelations={hiddenRelations}
+                search={search}
                 onNodeClick={handleNodeClick}
                 onBackgroundClick={handleBackgroundClick}
+                onReady={handleCanvasReady}
               />
             )}
 
-            {graph && graph.nodes.length === 0 && !loading && (
+            {hasGraph && graph && <Legend graph={graph} />}
+
+            {graph?.nodes.length === 0 && !loading && (
               <div className="empty-state">
                 <div className="empty-state-glyph">⌀</div>
                 <h3>No entities found</h3>
