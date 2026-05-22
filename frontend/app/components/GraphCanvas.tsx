@@ -337,28 +337,68 @@ export default function GraphCanvas({
     layoutRef.current = layout;
     layout.run();
 
-    // Hand the parent a stable handle bound to this cy instance.
+    // Hand the parent a stable handle bound to this cy instance. We use
+    // cytoscape's synchronous viewport methods (cy.fit / cy.zoom) rather
+    // than cy.animate, because the latter's argument shape is easy to get
+    // wrong and silently no-ops. Sync calls update the viewport immediately
+    // and never fail silently.
+    const stopAllAnimations = () => {
+      try { layoutRef.current?.stop?.(); } catch { /* noop */ }
+      try { cy.stop(true, false); } catch { /* noop */ }
+      try { cy.elements().stop(true, false); } catch { /* noop */ }
+    };
+    const zoomCentered = (factor: number) => {
+      const container = cy.container();
+      const minZ = cy.minZoom();
+      const maxZ = cy.maxZoom();
+      let target = cy.zoom() * factor;
+      if (typeof minZ === 'number') target = Math.max(target, minZ);
+      if (typeof maxZ === 'number') target = Math.min(target, maxZ);
+      if (container) {
+        cy.zoom({
+          level: target,
+          renderedPosition: {
+            x: container.clientWidth / 2,
+            y: container.clientHeight / 2,
+          },
+        });
+      } else {
+        cy.zoom(target);
+      }
+    };
     const handle: GraphCanvasHandle = {
       fit: () => {
         if (!alive(cy)) return;
-        cy.animate({ fit: { eles: cy.elements(), padding: 40 }, duration: 450 } as any);
+        stopAllAnimations();
+        cy.fit(undefined, 40);
       },
       zoomIn: () => {
         if (!alive(cy)) return;
-        cy.animate({ zoom: cy.zoom() * 1.3, duration: 220 } as any);
+        stopAllAnimations();
+        zoomCentered(1.3);
       },
       zoomOut: () => {
         if (!alive(cy)) return;
-        cy.animate({ zoom: cy.zoom() / 1.3, duration: 220 } as any);
+        stopAllAnimations();
+        zoomCentered(1 / 1.3);
       },
       exportPNG: () => {
         if (!alive(cy)) return;
-        const bg = resolveCssVar('var(--bg-paper)') || '#fbf8f1';
-        const png = cy.png({ bg, scale: 2, full: true } as any);
-        const a = document.createElement('a');
-        a.href = png;
-        a.download = 'knowledge-graph.png';
-        a.click();
+        stopAllAnimations();
+        try {
+          const bg = resolveCssVar('var(--bg-paper)') || '#fbf8f1';
+          const png = cy.png({ bg, scale: 2, full: true } as any);
+          const a = document.createElement('a');
+          a.href = png;
+          a.download = 'knowledge-graph.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (err) {
+          // PNG export can throw if cy is mid-render; surface but don't crash.
+          // eslint-disable-next-line no-console
+          console.error('PNG export failed:', err);
+        }
       },
     };
     onReadyRef.current?.(handle);
@@ -428,7 +468,7 @@ export default function GraphCanvas({
     matched.removeClass('dimmed');
     matched.connectedEdges().removeClass('dimmed');
     matched.connectedEdges().connectedNodes().removeClass('dimmed');
-    try { cy.animate({ fit: { eles: matched, padding: 80 }, duration: 450 } as any); } catch { /* noop */ }
+    try { cy.fit(matched, 80); } catch { /* noop */ }
   }, [search]);
 
   return <div ref={containerRef} className="cy-canvas" />;
