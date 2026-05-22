@@ -1,0 +1,160 @@
+@prefix kg: <http://kg-extractor.local/entity/> .
+@prefix rel: <http://kg-extractor.local/relation/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+kg:marie_curie a kg:Person ;
+    rdfs:label "Marie Curie" ;
+    rdfs:comment "Polish-born physicist and chemist, first woman to win a Nobel Prize." ;
+    kg:source_sentence "Marie Curie was a Polish-born physicist and chemist who became the first woman to win a Nobel Prize." ;
+    kg:source_sentence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:warsaw a kg:Location ;
+    rdfs:label "Warsaw" ;
+    rdfs:comment "Polish city where Marie Curie was born in 1867." ;
+    kg:source_sentence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:paris a kg:Location ;
+    rdfs:label "Paris" ;
+    rdfs:comment "French city where Marie Curie studied and conducted her research." ;
+    kg:source_sentence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:sorbonne a kg:Organization ;
+    rdfs:label "Sorbonne" ;
+    rdfs:comment "Parisian university where Marie Curie pursued her studies." ;
+    kg:source_sentence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:pierre_curie a kg:Person ;
+    rdfs:label "Pierre Curie" ;
+    rdfs:comment "French physicist, husband and research partner of Marie Curie." ;
+    kg:source_sentence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:polonium a kg:Concept ;
+    rdfs:label "polonium" ;
+    rdfs:comment "Chemical element discovered by Marie and Pierre Curie." ;
+    kg:source_sentence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:radium a kg:Concept ;
+    rdfs:label "radium" ;
+    rdfs:comment "Chemical element discovered by Marie and Pierre Curie; subject of her second Nobel Prize." ;
+    kg:source_sentence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." ;
+    kg:source_sentence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:henri_becquerel a kg:Person ;
+    rdfs:label "Henri Becquerel" ;
+    rdfs:comment "French physicist who shared the 1903 Nobel Prize with the Curies." ;
+    kg:source_sentence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:nobel_prize_physics_1903 a kg:Event ;
+    rdfs:label "Nobel Prize in Physics (1903)" ;
+    rdfs:comment "Awarded to Marie Curie, Pierre Curie, and Henri Becquerel." ;
+    kg:source_sentence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:nobel_prize_chemistry_1911 a kg:Event ;
+    rdfs:label "Nobel Prize in Chemistry (1911)" ;
+    rdfs:comment "Awarded to Marie Curie for her work on radium." ;
+    kg:source_sentence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:curie_institute a kg:Organization ;
+    rdfs:label "Curie Institute" ;
+    rdfs:comment "Medical research institution founded by Marie Curie in Paris." ;
+    kg:source_sentence "She founded the Curie Institute in Paris, which remains a major center for medical research." .
+
+kg:marie_curie rel:located_in kg:warsaw .
+[] a rdf:Statement ;
+    rdf:subject kg:marie_curie ;
+    rdf:predicate rel:located_in ;
+    rdf:object kg:warsaw ;
+    kg:evidence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:marie_curie rel:member_of kg:sorbonne .
+[] a rdf:Statement ;
+    rdf:subject kg:marie_curie ;
+    rdf:predicate rel:member_of ;
+    rdf:object kg:sorbonne ;
+    kg:evidence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:sorbonne rel:located_in kg:paris .
+[] a rdf:Statement ;
+    rdf:subject kg:sorbonne ;
+    rdf:predicate rel:located_in ;
+    rdf:object kg:paris ;
+    kg:evidence "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." .
+
+kg:marie_curie rel:related_to kg:pierre_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:marie_curie ;
+    rdf:predicate rel:related_to ;
+    rdf:object kg:pierre_curie ;
+    kg:evidence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:polonium rel:developed_by kg:marie_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:polonium ;
+    rdf:predicate rel:developed_by ;
+    rdf:object kg:marie_curie ;
+    kg:evidence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:polonium rel:developed_by kg:pierre_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:polonium ;
+    rdf:predicate rel:developed_by ;
+    rdf:object kg:pierre_curie ;
+    kg:evidence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:radium rel:developed_by kg:marie_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:radium ;
+    rdf:predicate rel:developed_by ;
+    rdf:object kg:marie_curie ;
+    kg:evidence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:radium rel:developed_by kg:pierre_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:radium ;
+    rdf:predicate rel:developed_by ;
+    rdf:object kg:pierre_curie ;
+    kg:evidence "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." .
+
+kg:marie_curie rel:related_to kg:nobel_prize_physics_1903 .
+[] a rdf:Statement ;
+    rdf:subject kg:marie_curie ;
+    rdf:predicate rel:related_to ;
+    rdf:object kg:nobel_prize_physics_1903 ;
+    kg:evidence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:pierre_curie rel:related_to kg:nobel_prize_physics_1903 .
+[] a rdf:Statement ;
+    rdf:subject kg:pierre_curie ;
+    rdf:predicate rel:related_to ;
+    rdf:object kg:nobel_prize_physics_1903 ;
+    kg:evidence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:henri_becquerel rel:related_to kg:nobel_prize_physics_1903 .
+[] a rdf:Statement ;
+    rdf:subject kg:henri_becquerel ;
+    rdf:predicate rel:related_to ;
+    rdf:object kg:nobel_prize_physics_1903 ;
+    kg:evidence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:marie_curie rel:related_to kg:nobel_prize_chemistry_1911 .
+[] a rdf:Statement ;
+    rdf:subject kg:marie_curie ;
+    rdf:predicate rel:related_to ;
+    rdf:object kg:nobel_prize_chemistry_1911 ;
+    kg:evidence "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." .
+
+kg:curie_institute rel:founded_by kg:marie_curie .
+[] a rdf:Statement ;
+    rdf:subject kg:curie_institute ;
+    rdf:predicate rel:founded_by ;
+    rdf:object kg:marie_curie ;
+    kg:evidence "She founded the Curie Institute in Paris, which remains a major center for medical research." .
+
+kg:curie_institute rel:headquartered_in kg:paris .
+[] a rdf:Statement ;
+    rdf:subject kg:curie_institute ;
+    rdf:predicate rel:headquartered_in ;
+    rdf:object kg:paris ;
+    kg:evidence "She founded the Curie Institute in Paris, which remains a major center for medical research." .

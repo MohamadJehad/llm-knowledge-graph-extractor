@@ -1,0 +1,127 @@
+{
+  "nodes": [
+    {
+      "id": "marie_curie",
+      "label": "Marie Curie",
+      "type": "Person",
+      "description": "Polish-born physicist and chemist, first woman to win a Nobel Prize.",
+      "source_sentences": [
+        "Marie Curie was a Polish-born physicist and chemist who became the first woman to win a Nobel Prize.",
+        "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne."
+      ]
+    },
+    {
+      "id": "warsaw",
+      "label": "Warsaw",
+      "type": "Location",
+      "description": "Polish city where Marie Curie was born in 1867.",
+      "source_sentences": ["Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne."]
+    },
+    {
+      "id": "paris",
+      "label": "Paris",
+      "type": "Location",
+      "description": "French city where Marie Curie studied and conducted her research.",
+      "source_sentences": ["Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne."]
+    },
+    {
+      "id": "sorbonne",
+      "label": "Sorbonne",
+      "type": "Organization",
+      "description": "Parisian university where Marie Curie pursued her studies.",
+      "source_sentences": ["Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne."]
+    },
+    {
+      "id": "pierre_curie",
+      "label": "Pierre Curie",
+      "type": "Person",
+      "description": "French physicist, husband and research partner of Marie Curie.",
+      "source_sentences": [
+        "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium."
+      ]
+    },
+    {
+      "id": "polonium",
+      "label": "polonium",
+      "type": "Concept",
+      "description": "Chemical element discovered by Marie and Pierre Curie.",
+      "source_sentences": ["She married Pierre Curie in 1895, and together they discovered the elements polonium and radium."]
+    },
+    {
+      "id": "radium",
+      "label": "radium",
+      "type": "Concept",
+      "description": "Chemical element discovered by Marie and Pierre Curie; subject of her second Nobel Prize.",
+      "source_sentences": [
+        "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium.",
+        "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium."
+      ]
+    },
+    {
+      "id": "henri_becquerel",
+      "label": "Henri Becquerel",
+      "type": "Person",
+      "description": "French physicist who shared the 1903 Nobel Prize with the Curies.",
+      "source_sentences": [
+        "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium."
+      ]
+    },
+    {
+      "id": "nobel_prize_physics_1903",
+      "label": "Nobel Prize in Physics (1903)",
+      "type": "Event",
+      "description": "Awarded to Marie Curie, Pierre Curie, and Henri Becquerel.",
+      "source_sentences": [
+        "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium."
+      ]
+    },
+    {
+      "id": "nobel_prize_chemistry_1911",
+      "label": "Nobel Prize in Chemistry (1911)",
+      "type": "Event",
+      "description": "Awarded to Marie Curie for her work on radium.",
+      "source_sentences": [
+        "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium."
+      ]
+    },
+    {
+      "id": "curie_institute",
+      "label": "Curie Institute",
+      "type": "Organization",
+      "description": "Medical research institution founded by Marie Curie in Paris.",
+      "source_sentences": [
+        "She founded the Curie Institute in Paris, which remains a major center for medical research."
+      ]
+    }
+  ],
+  "edges": [
+    { "source": "marie_curie", "target": "warsaw", "relation": "located_in",
+      "evidence": "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." },
+    { "source": "marie_curie", "target": "sorbonne", "relation": "member_of",
+      "evidence": "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." },
+    { "source": "sorbonne", "target": "paris", "relation": "located_in",
+      "evidence": "Born Maria Skłodowska in Warsaw in 1867, she moved to Paris in 1891 to study at the Sorbonne." },
+    { "source": "marie_curie", "target": "pierre_curie", "relation": "related_to",
+      "evidence": "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." },
+    { "source": "polonium", "target": "marie_curie", "relation": "developed_by",
+      "evidence": "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." },
+    { "source": "polonium", "target": "pierre_curie", "relation": "developed_by",
+      "evidence": "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." },
+    { "source": "radium", "target": "marie_curie", "relation": "developed_by",
+      "evidence": "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." },
+    { "source": "radium", "target": "pierre_curie", "relation": "developed_by",
+      "evidence": "She married Pierre Curie in 1895, and together they discovered the elements polonium and radium." },
+    { "source": "marie_curie", "target": "nobel_prize_physics_1903", "relation": "related_to",
+      "evidence": "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." },
+    { "source": "pierre_curie", "target": "nobel_prize_physics_1903", "relation": "related_to",
+      "evidence": "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." },
+    { "source": "henri_becquerel", "target": "nobel_prize_physics_1903", "relation": "related_to",
+      "evidence": "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." },
+    { "source": "marie_curie", "target": "nobel_prize_chemistry_1911", "relation": "related_to",
+      "evidence": "Marie Curie won the Nobel Prize in Physics in 1903, shared with Pierre and Henri Becquerel, and a second Nobel Prize in Chemistry in 1911 for her work on radium." },
+    { "source": "curie_institute", "target": "marie_curie", "relation": "founded_by",
+      "evidence": "She founded the Curie Institute in Paris, which remains a major center for medical research." },
+    { "source": "curie_institute", "target": "paris", "relation": "headquartered_in",
+      "evidence": "She founded the Curie Institute in Paris, which remains a major center for medical research." }
+  ]
+}
