@@ -32,6 +32,11 @@ export default function Home() {
   const [showAllLabels, setShowAllLabels] = useState<boolean>(false);
   // User-driven per-entity hide list (independent of the dates filter).
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  // Complexity slider: 1..numLevels (numLevels depends on graph size).
+  // Lower levels keep only the most central/most-mentioned entities; the
+  // highest level shows the full graph. Reset to max whenever a new graph
+  // loads so the user starts from "show me everything."
+  const [complexityLevel, setComplexityLevel] = useState<number>(5);
   // The canvas hands us back an imperative handle via onReady; we hold it in
   // a ref so toolbar callbacks can call into it without re-rendering.
   const canvasRef = useRef<GraphCanvasHandle | null>(null);
@@ -85,6 +90,9 @@ export default function Home() {
     const maxDeg = Math.max(0, ...Object.values(degree));
     const hubRatio = maxDeg / Math.max(1, graph.nodes.length - 1);
     setLayout(hubRatio >= 0.4 ? 'concentric' : 'cose');
+    // Start each new graph at maximum complexity (show everything).
+    const levels = Math.min(7, Math.max(3, Math.ceil(graph.nodes.length / 5)));
+    setComplexityLevel(levels);
   }, [graph]);
 
   const availableRelations = useMemo(() => {
@@ -93,6 +101,63 @@ export default function Home() {
     for (const e of graph.edges) seen.add(e.relation);
     return Array.from(seen).sort((a, b) => a.localeCompare(b));
   }, [graph]);
+
+  // ---- Complexity (importance-ranked entity filtering) ----------------------
+  // We rank entities by `degree + 2 × mention_count`. Highly-connected,
+  // frequently-mentioned entities rank highest. The slider's top level shows
+  // them all; lower levels keep only the top-K rank.
+  const entityRanking = useMemo(() => {
+    if (!graph) return [] as { id: string; score: number }[];
+    const degree: Record<string, number> = {};
+    for (const e of graph.edges) {
+      degree[e.source] = (degree[e.source] || 0) + 1;
+      degree[e.target] = (degree[e.target] || 0) + 1;
+    }
+    return graph.nodes
+      .map((n) => ({
+        id: n.id,
+        score:
+          (degree[n.id] || 0) +
+          2 * (Array.isArray(n.source_sentences) ? n.source_sentences.length : 0),
+      }))
+      .sort((a, b) => b.score - a.score);
+  }, [graph]);
+
+  // Number of complexity levels scales with graph size: 3 for tiny graphs,
+  // up to 7 for large ones. Stable for a given graph.
+  const numLevels = useMemo(() => {
+    if (!graph) return 5;
+    return Math.min(7, Math.max(3, Math.ceil(graph.nodes.length / 5)));
+  }, [graph]);
+
+  // How many entities to keep visible at the current level.
+  const visibleEntityCount = useMemo(() => {
+    if (!graph) return 0;
+    if (complexityLevel >= numLevels) return graph.nodes.length;
+    const ratio = complexityLevel / numLevels;
+    // Always show at least 3 (or the whole graph if it's smaller).
+    return Math.max(Math.min(3, graph.nodes.length), Math.ceil(graph.nodes.length * ratio));
+  }, [graph, complexityLevel, numLevels]);
+
+  // The set of node IDs hidden purely because of the complexity slider.
+  const complexityHiddenIds = useMemo(() => {
+    const hidden = new Set<string>();
+    if (!graph) return hidden;
+    if (complexityLevel >= numLevels) return hidden;
+    const visible = new Set(entityRanking.slice(0, visibleEntityCount).map((e) => e.id));
+    for (const n of graph.nodes) {
+      if (!visible.has(n.id)) hidden.add(n.id);
+    }
+    return hidden;
+  }, [graph, complexityLevel, numLevels, visibleEntityCount, entityRanking]);
+
+  // Effective hidden set passed to the canvas = manual hides + complexity hides.
+  const effectiveHiddenIds = useMemo(() => {
+    if (complexityHiddenIds.size === 0) return hiddenNodeIds;
+    const merged = new Set(hiddenNodeIds);
+    complexityHiddenIds.forEach((id) => merged.add(id));
+    return merged;
+  }, [hiddenNodeIds, complexityHiddenIds]);
 
   const handleExtract = async () => {
     if (!text.trim() || !providerId) return;
@@ -340,6 +405,11 @@ export default function Home() {
               hiddenNodes={hiddenNodesList}
               onUnhideNode={unhideNodeById}
               onShowAllHidden={showAllHidden}
+              complexityLevel={complexityLevel}
+              numComplexityLevels={numLevels}
+              visibleEntityCount={visibleEntityCount}
+              totalEntityCount={graph?.nodes.length ?? 0}
+              onComplexityChange={setComplexityLevel}
               onZoomIn={() => canvasRef.current?.zoomIn()}
               onZoomOut={() => canvasRef.current?.zoomOut()}
               onFit={() => canvasRef.current?.fit()}
@@ -375,7 +445,7 @@ export default function Home() {
                 graph={graph}
                 layoutName={layout}
                 hiddenRelations={hiddenRelations}
-                hiddenNodeIds={hiddenNodeIds}
+                hiddenNodeIds={effectiveHiddenIds}
                 search={search}
                 hideDates={hideDates}
                 showAllLabels={showAllLabels}

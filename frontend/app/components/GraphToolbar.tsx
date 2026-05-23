@@ -21,6 +21,12 @@ interface Props {
   hiddenNodes: { id: string; label: string }[];
   onUnhideNode: (id: string) => void;
   onShowAllHidden: () => void;
+  // Complexity slider (1..numComplexityLevels). Lower levels = fewer entities.
+  complexityLevel: number;
+  numComplexityLevels: number;
+  visibleEntityCount: number;
+  totalEntityCount: number;
+  onComplexityChange: (level: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFit: () => void;
@@ -99,6 +105,33 @@ export default function GraphToolbar(props: Props) {
           <button onClick={props.onExportPNG} title="Download as PNG" className="png-btn">PNG</button>
         </div>
       </div>
+
+      {props.totalEntityCount > 0 && props.numComplexityLevels > 1 && (
+        <div className="toolbar-row toolbar-complexity">
+          <span
+            className="relation-filter-label"
+            title="Show only the most important entities. Level 1 = most central + most-mentioned only; max level = full graph."
+          >
+            Complexity
+          </span>
+          <div className="complexity-segment" aria-label="Graph complexity">
+            {Array.from({ length: props.numComplexityLevels }, (_, i) => i + 1).map((level) => (
+              <button
+                key={level}
+                className={`complexity-btn ${props.complexityLevel === level ? 'active' : ''}`}
+                onClick={() => props.onComplexityChange(level)}
+                aria-pressed={props.complexityLevel === level}
+                title={`Level ${level} of ${props.numComplexityLevels}`}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+          <span className="complexity-count">
+            <strong>{props.visibleEntityCount}</strong> of {props.totalEntityCount} entities
+          </span>
+        </div>
+      )}
 
       {props.relations.length > 0 && (
         <div className="toolbar-row toolbar-relations">

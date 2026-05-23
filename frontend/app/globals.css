@@ -742,6 +742,59 @@ textarea, input, select {
   opacity: 0.85;
 }
 
+/* === Complexity slider (importance-ranked entity filter) === */
+.toolbar-complexity {
+  border-top: 1px dashed var(--rule);
+  padding-top: 8px;
+  gap: 14px;
+}
+
+.complexity-segment {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bg-paper);
+}
+
+.complexity-btn {
+  min-width: 32px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  background: transparent;
+  border-right: 1px solid var(--rule);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.complexity-btn:last-child {
+  border-right: none;
+}
+
+.complexity-btn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.complexity-btn.active {
+  background: var(--accent);
+  color: var(--bg-paper);
+}
+
+.complexity-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+}
+
+.complexity-count strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
 /* === Graph toolbar === */
 .graph-toolbar {
   padding: 12px 20px 8px;
