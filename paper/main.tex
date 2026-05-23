@@ -58,15 +58,13 @@
 
 % =============================================================================
 \begin{abstract}
-Building useful knowledge bases from text has been a challenge for a long time. The standard process, known as the Knowledge Acquisition Bottleneck, requires a domain expert to read documents and write down entities and relations by hand. Large Language Models (LLMs) can now do most of this work in a single API call. This paper describes a web application that takes any text and returns an interactive knowledge graph. The system has four main design choices. First, it uses an open vocabulary for entity types with a controlled vocabulary of 23 relations. We started with 15 relations (the typical encyclopedic set) and added 8 more after we noticed that many biographical facts were collapsing to a generic \texttt{related\_to} edge. Second, the prompt tells the model to use \emph{event reification} for biographical events such as births and marriages, so that a person is never directly connected to a date. Third, the prompt asks the model to merge surface mentions of the same entity using an \texttt{aliases} field. Fourth, every edge carries a verbatim evidence sentence and a self-reported confidence in $[0,1]$. Additionally, The frontend itself also includes an \emph{importance-ranked complexity slider} that hides less central entities at lower levels, which is very useful for paper-ready summary views. The system is designed to work with four LLM providers (Anthropic Claude, OpenAI GPT, Google Gemini, and local Ollama models) behind one shared schema, and exports the graph as JSON, PNG, or RDF/Turtle.
+Building useful knowledge bases from text has been a challenge for a long time. The standard process, known as the Knowledge Acquisition Bottleneck, requires a domain expert to read documents and write down entities and relations by hand. Large Language Models (LLMs) can now do most of this work in a single API call. This paper describes a web application that takes any text and returns an interactive knowledge graph. The system uses an open vocabulary for entity types but a controlled vocabulary of 23 relations. I started with 15 relations (the typical encyclopedic set) and added 8 more after I noticed that many biographical facts were collapsing to a generic \texttt{related\_to} edge. The prompt also asks the model to do \emph{event reification} for biographical events like births and marriages, so a person is never directly connected to a date, and to merge surface mentions of the same entity using an \texttt{aliases} field. Every edge carries a verbatim evidence sentence and a self-reported confidence in $[0,1]$. Additionally, The frontend itself also includes an \emph{importance-ranked complexity slider} that hides less central entities at lower levels, which is very useful for paper-ready summary views. The system is designed to work with four LLM providers (Anthropic Claude, OpenAI GPT, Google Gemini, and local Ollama models) behind one shared schema, and exports the graph as JSON, PNG, or RDF/Turtle.
 
 
 \end{abstract}
 
 % =============================================================================
-% Table of contents settings: keep the same typographic style as section
-% headings (large bold), and tighten the spacing so the ToC stays on one page.
-\renewcommand{\contentsname}{\normalfont\large\bfseries Contents}
+\renewcommand{\contentsname}{\normalfont\large\bfseries Table of contents}
 {
   \setlength{\parskip}{0pt}
   \tableofcontents
@@ -82,11 +80,11 @@ LLMs change this in an special way. They can recognize entities and relations in
 
 The main contributions are:
 \begin{enumerate}[leftmargin=1.8em]
-  \item A hybrid extraction schema (Section~\ref{sec:design}) with open entity types and 23 controlled relations.
-  \item A decision-rule system prompt (Section~\ref{sec:prompt}) that tells the model which relation to use for each common pattern, and that asks it to do event reification, alias merging, and generic/specific deduplication during extraction.
-  \item A per-edge audit trail (Sections~\ref{sec:design},~\ref{sec:viz}): every edge has a verbatim evidence sentence and a confidence value in $[0,1]$.
-  \item An interactive visualization (Section~\ref{sec:viz}) with degree-based node sizing, an ego-network highlight on hover, an importance-ranked complexity slider, and several filters that compose together.
-  \item A provider-agnostic backend (Section~\ref{sec:architecture}) covering Anthropic, OpenAI, Gemini, and Ollama behind the same schema, with RDF/Turtle export.
+  \item A hybrid extraction schema with open entity types and 23 controlled relations.
+  \item A decision-rule system prompt that tells the model which relation to use for each common pattern, and that asks it to do event reification, alias merging, and generic/specific deduplication during extraction.
+  \item A per-edge audit trail: every edge has a verbatim evidence sentence and a confidence value in $[0,1]$.
+  \item An interactive visualization with degree-based node sizing, an ego-network highlight on hover, an importance-ranked complexity slider, and several filters that compose together.
+  \item A provider-agnostic backend covering Anthropic, OpenAI, Gemini, and Ollama behind the same schema, with RDF/Turtle export.
 \end{enumerate}
 
 % =============================================================================
@@ -95,27 +93,27 @@ The main contributions are:
 Automated knowledge graph construction has gone through three main phases, and a few other research areas are also relevant for the choices we make below.
 
 \paragraph{Rule-based and supervised pipelines.}
-Early systems combined Named Entity Recognition with a separately trained Relation Extraction model. Mitchell et al.'s NELL system~\cite{mitchell2018neverending} showed that a semi-automated pipeline can keep building a knowledge base for years, but it still needed regular human curation, and it did not generalize well across domains. Adding a new relation meant collecting and labeling new training data.
+Early systems used Named Entity Recognition together with a separately trained Relation Extraction model. NELL~\cite{mitchell2018neverending} is the most known example. It can keep building a knowledge base for years, but it still needs regular human curation, and adding a new relation meant collecting and labeling new training data each time.
 
 \paragraph{Knowledge graph embeddings.}
-A parallel line of work focused on learning vector representations for entities and relations. TransE~\cite{bordes2013translating} is the classic example: head + relation $\approx$ tail in the embedding space. Later models such as RotatE and ComplEx improved the geometry. These methods are mainly for reasoning over an existing graph (predicting missing links, finding inconsistencies). They are not directly useful for building a graph from raw text.
+In parallel, a separate research line tried to learn vector representations for entities and relations. TransE~\cite{bordes2013translating} is the classic one (head + relation $\approx$ tail in the embedding space). These methods are useful for reasoning over an existing graph (predicting missing links, finding inconsistencies), but they cannot build a graph from raw text in the first place.
 
 \paragraph{LLM-based extraction.}
-Recent work uses LLMs as zero-shot or few-shot extractors. Pan et al.~\cite{pan2024unifying} survey this area and argue that LLMs and KGs should be combined: LLMs provide natural-language understanding, KGs provide structure and queryability. They specifically recommend controlled relations with open entity types, which is the choice we follow in Section~\ref{sec:design}. Microsoft's GraphRAG~\cite{edge2024graphrag} combines LLM extraction with graph-aware retrieval to improve question answering, and industry tools such as Neo4j's LLM Graph Builder~\cite{neo4j2024llmgraphbuilder} package the same idea for users. Our system fits in this third phase, but we focus on three things that other tools handle less explicitly: vocabulary coverage as an auditable property, n-ary reification done inside the prompt, and an importance-based summary view.
+Recent work uses LLMs as zero-shot or few-shot extractors. Pan et al.~\cite{pan2024unifying} survey this area and argue that LLMs and KGs should be combined: LLMs provide natural-language understanding, KGs provide structure and queryability. They specifically recommend controlled relations with open entity types, which is the choice we follow in Section~\ref{sec:design}. For me this was the most useful paper for the design of this project. Microsoft's GraphRAG~\cite{edge2024graphrag} combines LLM extraction with graph-aware retrieval to improve question answering, and industry tools such as Neo4j's LLM Graph Builder~\cite{neo4j2024llmgraphbuilder} package the same idea for users. My system fits in this third phase, but we focus on three things that other tools handle less explicitly: vocabulary coverage, n-ary reification done inside the prompt, and an importance-based summary view.
 
 \paragraph{Ontology design and n-ary relations.}
-Noy and McGuinness's \emph{Ontology Development 101}~\cite{noy2001ontology} explains the standard way to handle relations that have more than two arguments: introduce an extra node for the event itself, and attach the arguments to that node. A marriage, for example, involves two people, a date, and sometimes a place. In our system, the prompt asks the LLM to do this reification at extraction time rather than as a post-processing step.
+Noy and McGuinness's \emph{Ontology Development 101}~\cite{noy2001ontology} explains the standard way to handle relations that have more than two arguments: introduce an extra node for the event itself, and attach the arguments to that node. A marriage, for example, involves two people, a date, and sometimes a place. In my system, the prompt asks the LLM to do this reification at extraction time rather than as a post-processing step.
 
 \paragraph{Entity resolution.}
-Ji et al.~\cite{ji2022survey} survey knowledge graph construction and completion. They list entity resolution (deciding when two surface forms refer to the same entity) as one of the recurring failure modes of automated pipelines. The Maria Sk\l odowska / Marie Curie case from their survey is exactly the problem we address with the \texttt{aliases} field (Section~\ref{sec:aliases}).
+Ji et al.~\cite{ji2022survey} survey knowledge graph construction and completion. They list entity resolution (deciding when two surface forms refer to the same entity) as one of the recurring failure modes of automated pipelines. The Maria Sk\l odowska / Marie Curie case from their survey is exactly the problem that I address with the \texttt{aliases} field (Section~\ref{sec:aliases}).
 
 \paragraph{Knowledge graph summarization.}
-Visualization research has noticed for a long time that even small KGs become hard to read after a few dozen nodes. Liu et al.~\cite{liu2016kgconstruction} review KG construction techniques and discuss summarization options based on structural features (degree, centrality) or semantic ones (query relevance, ontology depth). Our complexity slider (Section~\ref{sec:complexity}) is structural: it ranks entities by degree plus mention frequency, which is simple to compute and easy to explain.
+Even with a good extractor, a graph with more than a few dozen nodes becomes hard to read on a single screen, and visualization research has been working on this problem for a long time. Liu et al.~\cite{liu2016kgconstruction} review the main ideas for KG summarization and group them into two families: \emph{structural} methods that look at graph properties like degree and centrality, and \emph{semantic} methods that look at things like query relevance or ontology depth. My complexity slider (Section~\ref{sec:complexity}) belongs to the first family: it ranks entities by their degree plus how many sentences mention them, which is simple to compute and also easy to explain to the user.
 
 % =============================================================================
 \section{System Architecture}\label{sec:architecture}
 
-The project is a small web application with two parts: a backend that exposes the extraction API, and a frontend that handles the input, the visualization, and the export. They communicate over JSON HTTP. Figure~\ref{fig:arch} shows the high-level data flow.
+The project is a small web application with two parts: a backend that exposes the extraction API, and a frontend that handles the input, the visualization, and also the export. The two parts communicate over JSON HTTP. Figure~\ref{fig:arch} shows the high-level data flow.
 
 \begin{figure}[ht]
 \centering
@@ -141,17 +139,17 @@ The backend integrates with four LLM providers: Anthropic Claude, OpenAI GPT, Go
 The most important design choices in this kind of system are the knowledge model (what counts as an entity, what counts as a relation, what extra fields each one carries) and the prompt that asks for it. 
 \subsection{Hybrid Schema: Open Types, Controlled Relations}
 
-A knowledge model can be \emph{closed}, where both entity types and relation labels are fixed in advance, or \emph{open}, where the extractor invents them. Closed models give clean, queryable graphs but only work in one domain. Open models handle any text but suffer from \emph{label drift}: the same relation appears as \textit{works\_at}, \textit{employed\_by}, and \textit{is\_employee\_of} in different runs, which breaks SPARQL queries and any union operation.
+A knowledge model can be either \emph{closed}, where both the entity types and the relation labels are fixed in advance, or \emph{open}, where the extractor invents them by itself. Closed models give clean, queryable graphs but only works in one domain: if you move to a new topic the whole schema is useless. Open models can handle any text, but they suffer from \emph{label drift}, which means the same relation can come out as \textit{works\_at}, \textit{employed\_by}, or \textit{is\_employee\_of} in different runs. This breaks SPARQL queries and any operation that tries to join two graphs together.
 
-We use a \emph{hybrid}: open entity types, but controlled relations. The model picks the most natural type for each entity (Person, Element, Theory, Field of study, etc.), while relation labels come from a fixed list. This split is also what Pan et al.~\cite{pan2024unifying} recommend.
+I use a \emph{hybrid}: open entity types, but controlled relations. The model picks the most natural type for each entity (Person, Element, Theory, Field of study, etc.), while relation labels come from a fixed list. This split is also what Pan et al.~\cite{pan2024unifying} recommend.
 
 \subsection{Controlled Relation Vocabulary}\label{sec:vocab}
 
-The vocabulary contains 23 relations chosen to cover the patterns that appear most often in biographical, scientific, and organizational text. They fall into three rough categories:
+The vocabulary contains 23 relations. I chose them to cover the patterns that appear most often in three kinds of text: biographies (people, places, dates, awards), scientific writing (discoveries, theories, causes), and organizational descriptions (companies, products, locations). The relations themselves fall into three rough categories, which I noticed while testing the prompt on sample passages:
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textit{Biographical place relations.} A person is \emph{born in} a city, or \emph{lived in} a country. Using a single \texttt{located\_in} for both organizations and people would be a type error, so we keep them separated.
-  \item \textit{Discovery vs.\ creation.} Natural elements, particles, and laws are \emph{discovered}, not \emph{created}. We provide \texttt{discovered\_by} alongside \texttt{created\_by} and \texttt{developed\_by} so that elements like polonium are not assigned a human-authorship relation.
+  \item \textit{Biographical place relations.} A person is \emph{born in} a city, or \emph{lived in} a country. Using a single \texttt{located\_in} for both organizations and people would be a type error, so I kept them as separated relations.
+  \item \textit{Discovery vs.\ creation.} Natural elements, particles, and laws are \emph{discovered}, not \emph{created}. I added \texttt{discovered\_by} alongside \texttt{created\_by} and \texttt{developed\_by}, so that elements like polonium are not assigned a human-authorship relation.
   \item \textit{Shared honours.} When a Nobel Prize is shared between three people, the symmetric co-recipient relation needs to survive as more than a generic connection.
 \end{itemize}
 
@@ -162,6 +160,8 @@ The full list is:
 \end{quote}
 
 A generic \texttt{related\_to} relation is included so the model can still emit a fact when none of the other 22 relations fits.
+
+In the first version of the system I had only 15 relations, more or less the standard encyclopedic set. After running it on some biographical paragraphs I noticed quickly that the model was using \texttt{related\_to} for things like ``born in a city'' or ``studied at a university'', because no more specific relation was available. So I added 8 more relations (\texttt{born\_in}, \texttt{lived\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{awarded}, \texttt{awarded\_for}, \texttt{co\_recipient\_with}, and \texttt{discovered\_by}). After this change the same paragraphs produced much cleaner graphs.
 
 \subsection{Output Schema}
 
@@ -187,12 +187,12 @@ The extraction target is a JSON object with two arrays. Listing~\ref{lst:schema}
 }
 \end{lstlisting}
 
-Three things to note. First, every single node has source sentences and every edge has an evidence sentence. This lets the user check the extraction, and it also makes the model less likely to invent facts: when you ask the model to cite a sentence, it tends to stay closer to the text. Second, the \texttt{id} field uses \texttt{lowercase\_with\_underscores}, which works directly as a URI fragment in the RDF/Turtle export (\texttt{kg:marie\_curie}). Third, \texttt{aliases} and \texttt{confidence} are required (not optional) in the schema, because OpenAI's \texttt{strict:true} mode does not allow optional properties; the model returns \texttt{[]} or a default of $0.7$ when there is nothing to say.
+A few small details worth mentioning here. Every node has source sentences and every edge has an evidence sentence. This lets the user check the extraction, and it also makes the model less likely to invent facts, because when you ask it to cite a sentence it usually stays closer to the text. The \texttt{id} field uses \texttt{lowercase\_with\_underscores}, so it works directly as a URI fragment in the RDF/Turtle export (\texttt{kg:marie\_curie}). The \texttt{aliases} and \texttt{confidence} fields are required (not optional) in the schema, because OpenAI's \texttt{strict:true} mode does not allow optional properties; the model returns \texttt{[]} or a default of $0.7$ when there is nothing to say.
 
 % =============================================================================
 \section{The Prompt}\label{sec:prompt}
 
-Beyond listing the relation vocabulary, the prompt does five things, each one designed to solve a specific extraction problem.
+Apart from listing the relation vocabulary, the prompt does five other things, each one designed to solve a specific extraction problem.
 
 \subsection{Decision Rules for Each Relation}\label{sec:decision-rules}
 
@@ -208,8 +208,8 @@ Two or more people sharing an award $\rightarrow$ \texttt{co\_recipient\_with} b
 
 Biographical events such as births and marriages usually have more than two arguments (a person, a date, sometimes a place). Since each edge is binary, attaching them directly to one person produces type errors like \texttt{marie\_curie occurred\_on 1867}, which reads as ``Marie Curie happened on 1867''.
 
-The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to introduce an intermediate node for the event and attach the arguments to it (e.g.\  \texttt{birth\_marie\_curie occurred\_on 1867}, 
-\texttt{birth\_marie\_curie occurred\_at warsaw}). The prompt asks the model to perform this reification at extraction time. The cost is more nodes; we offset this in the visualization by rendering event nodes smaller and hiding them first when the complexity slider is moved down (Section~\ref{sec:complexity}).
+The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to introduce an intermediate node for the event and attach the arguments to it (e.g.\  \texttt{birth\_marie\_curie occurred\_on 1867},
+\texttt{birth\_marie\_curie occurred\_at warsaw}). The prompt asks the model to perform this reification at extraction time. The cost is more nodes; I offset this in the visualization by rendering event nodes smaller and by hiding them firstly when the complexity slider is moved down (Section~\ref{sec:complexity}).
 
 \subsection{Entity Resolution via Aliases}\label{sec:aliases}
 
@@ -226,7 +226,7 @@ Each edge carries a self-reported \texttt{confidence} value in $[0,1]$: $1.0$ fo
 % =============================================================================
 \section{Interactive Visualization}\label{sec:viz}
 
-The frontend is a single page that puts the text input and provider menus on the left and the graph view on the right. The graph is drawn with Cytoscape.js, with a toolbar above it and a side panel that opens when a node is clicked.
+The frontend is a single page which puts the text input and the provider menus on the left side, and the graph view on the right side. The graph is drawn with Cytoscape.js, with a toolbar above it and a side panel that opens when a node is clicked.
 
 \subsection{Visual Encoding}
 
@@ -307,8 +307,7 @@ The model emits a single \texttt{mark\_twain} node with \texttt{Samuel Clemens} 
 
 % =============================================================================
 \section{Conclusion}\label{sec:conclusion}
-
-We have built an LLM-powered knowledge graph extractor that takes any text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, and self-reported confidence. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, four orthogonal filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
+We have built an LLM-powered knowledge graph extractor that takes any text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, and a self-reported confidence value for each edge. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, a few filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
 
 The main lesson from the project is that classical knowledge-engineering problems do not disappear when you use a modern solutions like using LLMs. The vocabulary still drifts, n-ary relations still need reification, the same entity still appears under multiple names, and a graph that does not show its uncertainty is still hard to trust. What changes is who does the work: a single LLM call now does most of what a human knowledge engineer used to do by hand, and the engineer's job becomes designing the rules (the vocabulary, the prompt, the audit) that make the extraction trustworthy.
 
