@@ -76,15 +76,13 @@ Building useful knowledge bases from text has been a challenge for a long time. 
 % =============================================================================
 \section{Introduction}\label{sec:intro}
 
-Building queryable knowledge bases from text has historically been slow and expensive. human experts need to read every document, decide which entities and relations are relevant, and write them down. Feigenbaum~\cite{feigenbaum1977art} called this the \emph{Knowledge Acquisition Bottleneck}, and the problem has not really disappeared. Tools like Prot\'eg\'e and CycL help with modeling, but they do not remove the manual reading step.
+Building queryable knowledge bases from text has historically been slow and expensive. Human experts need to read every document, decide which entities and relations are relevant, and write them down. Feigenbaum~\cite{feigenbaum1977art} called this the \emph{Knowledge Acquisition Bottleneck}, and the problem has not really disappeared.
 
-LLMs change this in an special way. Because they are trained on a very large amount of text, they can already recognize entities and relations in any new passage without being trained on a specific datasets. They can also be asked to return structured output (JSON with a fixed schema) using tool-use APIs~\cite{anthropic2024toolUse} or strict JSON-Schema decoding~\cite{openai2024structured}. The natural question is whether this can be turned into a usable application that does most of what a knowledge engineer used to do by hand.
+LLMs change this in an special way. They can recognize entities and relations in any new passage without being trained on a specific datasets, and they can be asked to return structured output (JSON with a fixed schema) using tool-use APIs~\cite{anthropic2024toolUse} or strict JSON-Schema decoding~\cite{openai2024structured}. This paper describes a web application that uses this capability to do most of what a knowledge engineer used to do by hand.
 
-This paper describes such an application. The first version (v1) was a thin wrapper around an LLM call: one prompt, 15 relations, a force-directed graph view. While testing it on biographical and scientific passages we found several problems that match well-known issues from the knowledge engineering literature: missing relations, generic fallbacks, type errors (a person ``located in'' a year), and duplicated entities for the same real-world thing. The second version (v2), described here, fixes these problems with a longer system prompt, an extended relation list, an \texttt{aliases} field, an \texttt{[FALLBACK]} marker, and several new visualization controls.
-
-The main contributions of this work are:
+The main contributions are:
 \begin{enumerate}[leftmargin=1.8em]
-  \item A hybrid extraction schema (Section~\ref{sec:design}) with open entity types and 23 controlled relations, chosen by looking at where v1 was falling back to \texttt{related\_to}.
+  \item A hybrid extraction schema (Section~\ref{sec:design}) with open entity types and 23 controlled relations.
   \item A decision-rule system prompt (Section~\ref{sec:prompt}) that tells the model which relation to use for each common pattern, and that asks it to do event reification, alias merging, and generic/specific deduplication during extraction.
   \item A per-edge audit trail (Sections~\ref{sec:design},~\ref{sec:viz}): every edge has a verbatim evidence sentence, a confidence value in $[0,1]$, and a \texttt{[FALLBACK]} prefix when the model used the generic relation.
   \item An interactive visualization (Section~\ref{sec:viz}) with degree-based node sizing, an ego-network highlight on hover, an importance-ranked complexity slider, and several filters that compose together.
@@ -122,47 +120,25 @@ W3C's PROV-O~\cite{lebo2013provO} and related work all stress that being able to
 % =============================================================================
 \section{System Architecture}\label{sec:architecture}
 
-The project is a small monorepo with two parts: a stateless Express backend that exposes the extraction API, and a Next.js frontend that handles the input, the visualization, and the export. They talk over JSON HTTP; the frontend proxies \texttt{/api/*} to the backend during development. Figure~\ref{fig:arch} shows the high-level flow.
+The project is a small web application with two parts: a backend that exposes the extraction API, and a frontend that handles the input, the visualization, and the export. They communicate over JSON HTTP. Figure~\ref{fig:arch} shows the high-level data flow.
 
 \begin{figure}[ht]
 \centering
 \begin{small}\ttfamily
 \begin{tabular}{ccc}
-\fbox{\parbox{3.2cm}{\centering Next.js UI\\(Cytoscape.js)}} &
-$\xrightarrow{\text{POST /api/extract}}$ &
-\fbox{\parbox{3.2cm}{\centering Express API\\\& provider router}} \\
+\fbox{\parbox{3.2cm}{\centering Frontend UI\\(graph view)}} &
+$\xrightarrow{\text{extract request}}$ &
+\fbox{\parbox{3.2cm}{\centering Backend API\\\& provider router}} \\
 & & $\downarrow$ \\
-& & \fbox{\parbox{3.6cm}{\centering Provider adapter\\(Claude / GPT / Gemini / Ollama)}}
+& & \fbox{\parbox{3.6cm}{\centering LLM provider\\(Claude / GPT / Gemini / Ollama)}}
 \end{tabular}
 \end{small}
-\caption{High-level data flow. The frontend never talks to LLM providers directly. The backend chooses the right adapter and normalizes the result into a single \texttt{\{nodes, edges, meta\}} schema. Only one LLM call is made per extraction; everything else (filtering, layout, complexity slider, export) happens in the browser.}
+\caption{High-level data flow. The frontend never talks to LLM providers directly. The backend selects the right provider and normalizes the result into a single graph schema. Only one LLM call is made per extraction; everything else (filtering, layout, complexity slider, export) happens in the browser.}
 \label{fig:arch}
 \end{figure}
 
-\subsection{Provider Adapters}
+The backend integrates with four LLM providers: Anthropic Claude, OpenAI GPT, Google Gemini, and local models served by Ollama. Each provider has a different way of returning structured output, but the backend hides these differences behind a single common interface. The user can switch between providers from a dropdown menu in the UI without any change to the application. A small registry detects automatically which providers are available (based on which API keys are configured) and shows only those in the menu.
 
-Each LLM is wrapped in an adapter with the same interface: \texttt{isConfigured()} and \texttt{extract(text, model)}. Each adapter uses the most reliable structured-output mechanism that provider supports:
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Anthropic Claude}: one forced tool call, \texttt{tool\_choice = \{type:"tool", name:"emit\_graph"\}}, with the JSON Schema as the tool's \texttt{input\_schema}. The adapter unwraps the \texttt{tool\_use} block.
-  \item \textbf{OpenAI GPT}: structured outputs with \texttt{response\_format = \{type:"json\_schema", strict:true\}}. The API enforces the schema, but it requires every property to be in \texttt{required}. That is why we make \texttt{aliases} and \texttt{confidence} mandatory rather than optional.
-  \item \textbf{Google Gemini}: \texttt{responseSchema} in \texttt{generationConfig} with \texttt{responseMimeType:"application/json"}. Gemini uses its own \texttt{SchemaType} enum, so we keep a parallel schema definition that mirrors the canonical JSON Schema.
-  \item \textbf{Ollama}: the local-model adapter uses \texttt{format:"json"} on the \texttt{/api/chat} endpoint. Open models do not yet enforce schemas as strictly as commercial APIs, so the post-extraction normalizer does more work here.
-\end{itemize}
-
-A central registry auto-detects which adapters are configured (by checking environment variables for the commercial APIs, and by pinging \texttt{localhost:11434} for Ollama) and shows only those in the UI. This way the app stays usable even when the user has only one provider.
-
-\subsection{Endpoints}
-
-The backend exposes three endpoints:
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \texttt{GET /api/providers}: returns the list of usable providers and their model menus.
-  \item \texttt{POST /api/extract}: takes \texttt{\{text, provider, model\}} and returns \texttt{\{nodes, edges, meta\}}.
-  \item \texttt{POST /api/export/turtle}: takes a graph object and returns an RDF/Turtle file. The serialization uses \texttt{rdf:Statement} reification so that evidence and confidence survive the export.
-\end{itemize}
-
-Between the adapter and the response there is a normalizer (\texttt{normalizeGraph} in \texttt{schema.js}). It drops nodes that do not have an \texttt{id} or a \texttt{label}, drops edges that point to a node that does not exist, replaces unknown relations with \texttt{related\_to}, and clamps any confidence value into $[0,1]$ with a default of $0.7$ when the field is missing.
 
 % =============================================================================
 \section{Knowledge Model and Schema Design}\label{sec:design}
