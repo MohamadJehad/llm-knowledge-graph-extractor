@@ -213,7 +213,8 @@ Two or more people sharing an award $\rightarrow$ \texttt{co\_recipient\_with} b
 
 Biographical events such as births and marriages usually have more than two arguments (a person, a date, sometimes a place). Since each edge is binary, attaching them directly to one person produces type errors like \texttt{marie\_curie occurred\_on 1867}, which reads as ``Marie Curie happened on 1867''.
 
-The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to introduce an intermediate node for the event and attach the arguments to it (e.g.\ \texttt{birth\_marie\_curie occurred\_on 1867}, \texttt{birth\_marie\_curie occurred\_at warsaw}). The prompt asks the model to perform this reification at extraction time. The cost is more nodes; we offset this in the visualization by rendering event nodes smaller and hiding them first when the complexity slider is moved down (Section~\ref{sec:complexity}).
+The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to introduce an intermediate node for the event and attach the arguments to it (e.g.\  \texttt{birth\_marie\_curie occurred\_on 1867}, 
+\texttt{birth\_marie\_curie occurred\_at warsaw}). The prompt asks the model to perform this reification at extraction time. The cost is more nodes; we offset this in the visualization by rendering event nodes smaller and hiding them first when the complexity slider is moved down (Section~\ref{sec:complexity}).
 
 \subsection{Entity Resolution via Aliases}\label{sec:aliases}
 
@@ -236,7 +237,7 @@ The frontend is a single page that puts the text input and provider menus on the
 
 \subsection{Visual Encoding}
 
-Node color encodes the entity type (Person, Organization, Location, Concept, Event, plus a default). Node size is proportional to degree, so the most central entities visually stand out. Edge style encodes confidence: solid for high-confidence vocabulary edges, dashed for low confidence ($<0.6$), and dotted-italic-muted for \texttt{[FALLBACK]} edges. Event-reification nodes are rendered smaller and semi-transparent, so they fade behind the real entities. Edge labels are hidden by default and revealed only on hover, otherwise the graph becomes unreadable when there are many edges.
+Node color encodes the entity type (Person, Organization, Location, Concept, Event, plus a default). Node size is proportional to degree, so the most central entities visually stand out. Edge style encodes confidence: solid for high-confidence vocabulary edges, dashed for low confidence, and dotted-italic-muted for \texttt{[FALLBACK]} edges. Event-reification nodes are rendered smaller and semi-transparent, so they fade behind the real entities. Edge labels are hidden by default and revealed only on hover, otherwise the graph becomes unreadable when there are many edges.
 
 \subsection{Layouts}
 
@@ -272,19 +273,19 @@ Three buttons in the graph header: JSON (the normalized graph), RDF/Turtle (with
 % =============================================================================
 \section{Qualitative Evaluation}\label{sec:evaluation}
 
-We evaluated the system on three passages of different character: a simple organizational sentence, a longer abstract passage from a research document, and a biographical paragraph that uses an alias. The outputs were inspected manually for entity coverage, relation correctness, alias resolution, and fallback rate. Table~\ref{tab:results} summarizes the size of each extracted graph.
+We evaluated the system on three passages of different character: a simple organizational sentence, a longer encyclopedic paragraph on climate science, and a biographical paragraph that uses an alias. The outputs were inspected manually for entity coverage, relation correctness, alias resolution, and fallback rate. Table~\ref{tab:results} summarizes the size of each extracted graph.
 
 \begin{table}[ht]
 \centering\small
-\caption{Extraction results on three sample passages (Claude Sonnet 4.5).}
+\caption{Extraction results on three sample passages (Microsoft and Mark Twain with Claude Sonnet 4.5; Climate Science with Gemini 2.5 Flash).}
 \label{tab:results}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Passage} & \textbf{Nodes} & \textbf{Edges} & \textbf{\texttt{[FALLBACK]}} & \textbf{Aliases} \\
 \midrule
-Microsoft       & 6   & 5   & 0     & --- \\
-Research Aims   & $\sim$35 & $\sim$50 & several & --- \\
-Mark Twain      & 14  & 17  & 1     & 1 (Clemens) \\
+Microsoft       & 6   & 5   & 0       & --- \\
+Climate Science & 25  & 20  & several & --- \\
+Mark Twain      & 14  & 17  & 1       & 1 (Clemens) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -295,11 +296,15 @@ Mark Twain      & 14  & 17  & 1     & 1 (Clemens) \\
 
 The extraction is clean and contains no fallbacks: \texttt{microsoft headquartered\_in redmond}, \texttt{redmond located\_in washington}, \texttt{microsoft founded\_by bill\_gates}, \texttt{windows developed\_by microsoft}, \texttt{office developed\_by microsoft}. Microsoft is connected to four of the five other entities (hub ratio $= 0.8$), so the page automatically picks the concentric layout. The result confirms that the controlled vocabulary covers simple organizational text without any fallback.
 
-\subsection{Sample 2: Research Aims}
+\subsection{Sample 2: Climate Science}
 
-The second passage is the ``Specific Research Aims'' chapter from a thesis proposal, roughly 200 words describing four research aims for a tracing SDK project. It is the most challenging input we tested. Many of its verbs (\emph{build, measure, quantify, validate}) do not map cleanly to the controlled vocabulary, so the model uses \texttt{related\_to} several times. The full graph contains about 35 nodes and 50 edges, which is too dense to read at once.
+\emph{``The greenhouse effect is a natural process in which gases in Earth's atmosphere trap heat from the Sun. Carbon dioxide, methane, and water vapor are the main greenhouse gases. Since the Industrial Revolution, human activities such as burning fossil fuels and deforestation have increased atmospheric carbon dioxide concentrations significantly. This enhanced greenhouse effect causes global warming, which leads to rising sea levels, more frequent extreme weather, and ocean acidification. The Intergovernmental Panel on Climate Change was established in 1988 by the United Nations to assess scientific evidence on climate change.''}
 
-This is exactly the case the importance-ranked complexity slider was designed for. At level 1, only the two most central aims and their immediate neighbours are shown, giving a clean elevator-pitch view. At level 2, all four aims become visible together with their connecting concepts. At the maximum level, the full graph is exposed for detailed inspection. The slider therefore turns a single extraction into a continuous summary--detail axis. The frequent dotted \texttt{[FALLBACK]} edges also signal correctly that the vocabulary, which is tuned for biographical and organizational text, does not fully cover an abstract research-process domain.
+The second passage is a short paragraph on climate science taken from a popular-science introduction. The extraction with Gemini 2.5 Flash returns 25 entities and 20 relations in about 45 seconds. The type mix is varied (2 organizations, 1 location, 7 concepts, 2 events, 13 other), which is what the open-type design is built for: the model is not forced to pick from a closed list and uses a generic \emph{Other} type when nothing precise fits.
+
+The relations show a clear chain: \emph{enhanced greenhouse effect} \texttt{causes} \emph{global warming}, which in turn \texttt{causes} \emph{rising sea levels}, \emph{extreme weather}, and \emph{ocean acidification}. Compositional facts are captured with \texttt{part\_of} (\emph{methane}, \emph{carbon dioxide}, and \emph{water vapor} as part of \emph{greenhouse gases}). Two events are reified: the \emph{establishment of the IPCC} node carries an \texttt{occurred\_on} edge to the date \emph{1988} and a \texttt{founded\_by} edge to the \emph{United Nations}, which is exactly the n-ary pattern the prompt is designed to produce. A few \texttt{related\_to} edges remain (for example, from \emph{scientific evidence} to \emph{climate change}), which means the controlled vocabulary does not cover every relation in this domain and the \texttt{[FALLBACK]} audit marker correctly flags those spots.
+
+This passage is also a good test of the importance-ranked complexity slider. Since $\lceil 25/5 \rceil = 5$, five levels are available; at level 1 the user sees only the most central nodes such as \emph{greenhouse effect}, \emph{global warming}, and \emph{greenhouse gases}, and at level 5 the full graph is shown for detailed inspection.
 
 \subsection{Sample 3: Mark Twain}
 
@@ -307,23 +312,12 @@ This is exactly the case the importance-ranked complexity slider was designed fo
 
 The model emits a single \texttt{mark\_twain} node with \texttt{Samuel Clemens} stored as an alias, which is the expected outcome of the alias-resolution rule in the prompt. The biographical relations fire as designed: \texttt{married\_to} (Olivia Langdon, symmetric in both directions), \texttt{created\_by} for the two novels, and \texttt{awarded} for the honorary doctorate. Birth, marriage, settlement, and award are reified as their own event nodes, each carrying \texttt{occurred\_on} (date) and \texttt{occurred\_at} (place) attributes, which avoids the type errors of attaching dates directly to Twain. One \texttt{[FALLBACK]} edge connects the award event to \texttt{Oxford University} --- the vocabulary has no precise \texttt{awarded\_by} relation, and the audit marker correctly highlights that gap.
 
-\subsection{Cross-Provider Notes}
-
-Two observations recurred across all three samples. First, schema-enforced providers (Anthropic tool-use, OpenAI strict JSON schema) produced parseable output every time, while Ollama with \texttt{format:"json"} occasionally returned relations outside the controlled vocabulary, which the normalizer coerced to \texttt{related\_to}. Second, Claude tends to extract more entities and reify more aggressively, while Gemini is faster and produces a coarser graph; the complexity slider lets the user normalize Claude's output toward Gemini's level if they prefer a cleaner summary.
-
-% =============================================================================
-\section{Discussion and Limitations}\label{sec:discussion}
-
-The system handles short, well-formed English passages well, but several limitations remain. The vocabulary is fixed at 23 relations, so specialized domains (legal, biomedical, financial) would need additional ones; the \texttt{[FALLBACK]} marker is what tells the user when the current vocabulary stops being enough. Confidence values are self-reported by the LLM and not calibrated against any external scorer, so they should be read as hints rather than measurements. Each extraction is single-pass with no cross-document entity linking, so submitting the same text twice produces two separate nodes. Finally, the evaluation is qualitative and based on three passages: a quantitative study against gold-standard annotations remains future work.
-
 % =============================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-We have built an LLM-powered knowledge graph extractor that takes any short text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, self-reported confidence, and an explicit \texttt{[FALLBACK]} marker. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, four orthogonal filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
+We have built an LLM-powered knowledge graph extractor that takes any text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, self-reported confidence, and an explicit \texttt{[FALLBACK]} marker. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, four orthogonal filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
 
-The main lesson from the project is that classical knowledge-engineering problems do not disappear when you use an LLM. The vocabulary still drifts, n-ary relations still need reification, the same entity still appears under multiple names, and a graph that does not show its uncertainty is still hard to trust. What changes is who does the work: a single LLM call now does most of what a human knowledge engineer used to do by hand, and the engineer's job becomes designing the rules (the vocabulary, the prompt, the audit) that make the extraction trustworthy.
-
-Cross-document entity linking against an external knowledge base, a quantitative evaluation against gold-standard annotations, and a user-editable relation vocabulary are the three most natural next steps. The codebase is small enough that each of these can be added without major changes to the architecture.
+The main lesson from the project is that classical knowledge-engineering problems do not disappear when you use a modern solutions like using LLMs. The vocabulary still drifts, n-ary relations still need reification, the same entity still appears under multiple names, and a graph that does not show its uncertainty is still hard to trust. What changes is who does the work: a single LLM call now does most of what a human knowledge engineer used to do by hand, and the engineer's job becomes designing the rules (the vocabulary, the prompt, the audit) that make the extraction trustworthy.
 
 % =============================================================================
 \begin{thebibliography}{9}
