@@ -143,38 +143,36 @@ The backend integrates with four LLM providers: Anthropic Claude, OpenAI GPT, Go
 % =============================================================================
 \section{Knowledge Model and Schema Design}\label{sec:design}
 
-The most important design choices in this kind of system are the knowledge model (what counts as an entity, what counts as a relation, what extra fields each one carries) and the prompt that asks for it. We discuss the model here and the prompt in Section~\ref{sec:prompt}.
-
+The most important design choices in this kind of system are the knowledge model (what counts as an entity, what counts as a relation, what extra fields each one carries) and the prompt that asks for it. 
 \subsection{Hybrid Schema: Open Types, Controlled Relations}
 
 A knowledge model can be \emph{closed}, where both entity types and relation labels are fixed in advance, or \emph{open}, where the extractor invents them. Closed models give clean, queryable graphs but only work in one domain. Open models handle any text but suffer from \emph{label drift}: the same relation appears as \textit{works\_at}, \textit{employed\_by}, and \textit{is\_employee\_of} in different runs, which breaks SPARQL queries and any union operation.
 
 We use a \emph{hybrid}: open entity types, but controlled relations. The model picks the most natural type for each entity (Person, Element, Theory, Field of study, etc.), while relation labels come from a fixed list. This split is also what Pan et al.~\cite{pan2024unifying} recommend.
 
-\subsection{Extended Relation Vocabulary (v2)}\label{sec:vocab}
+\subsection{Controlled Relation Vocabulary}\label{sec:vocab}
 
-The first version of the vocabulary had 15 relations covering the encyclopedic baseline. After running v1 on three biographical and scientific passages, we noticed that certain patterns kept ending up as \texttt{related\_to}. The three biggest categories were:
+The vocabulary contains 23 relations chosen to cover the patterns that appear most often in biographical, scientific, and organizational text. They fall into three rough categories:
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textit{Biographical place relations.} A person is \emph{born in} a city, or \emph{lived in} a country. The v1 vocabulary only had \texttt{located\_in}, which makes sense for organizations but is a type error for people.
-  \item \textit{Discovery vs.\ creation.} Natural elements, particles, and laws are \emph{discovered}, not \emph{created}. v1 only had \texttt{created\_by} and \texttt{developed\_by}, which both imply human authorship and so are wrong for elements like polonium.
-  \item \textit{Shared honours.} When a Nobel Prize is shared between three people, the symmetric co-recipient relation was lost as three separate \texttt{related\_to} edges.
+  \item \textit{Biographical place relations.} A person is \emph{born in} a city, or \emph{lived in} a country. Using a single \texttt{located\_in} for both organizations and people would be a type error, so we keep them separated.
+  \item \textit{Discovery vs.\ creation.} Natural elements, particles, and laws are \emph{discovered}, not \emph{created}. We provide \texttt{discovered\_by} alongside \texttt{created\_by} and \texttt{developed\_by} so that elements like polonium are not assigned a human-authorship relation.
+  \item \textit{Shared honours.} When a Nobel Prize is shared between three people, the symmetric co-recipient relation needs to survive as more than a generic connection.
 \end{itemize}
 
-So we extended the vocabulary to 23 relations. The new ones are added specifically to cover the cases above:
+The full list is:
 
 \begin{quote}\small
-\textbf{Original (v1):} \texttt{works\_for}, \texttt{member\_of}, \texttt{founded\_by}, \texttt{located\_in}, \texttt{headquartered\_in}, \texttt{part\_of}, \texttt{created\_by}, \texttt{developed\_by}, \texttt{causes}, \texttt{influences}, \texttt{occurred\_at}, \texttt{occurred\_on}, \texttt{has\_property}, \texttt{related\_to}, \texttt{opposes}.\\[2pt]
-\textbf{Added in v2:} \texttt{discovered\_by}, \texttt{born\_in}, \texttt{lived\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{awarded}, \texttt{awarded\_for}, \texttt{co\_recipient\_with}.
+\texttt{works\_for}, \texttt{member\_of}, \texttt{founded\_by}, \texttt{located\_in}, \texttt{headquartered\_in}, \texttt{part\_of}, \texttt{created\_by}, \texttt{developed\_by}, \texttt{discovered\_by}, \texttt{causes}, \texttt{influences}, \texttt{occurred\_at}, \texttt{occurred\_on}, \texttt{has\_property}, \texttt{related\_to}, \texttt{opposes}, \texttt{born\_in}, \texttt{lived\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{awarded}, \texttt{awarded\_for}, \texttt{co\_recipient\_with}.
 \end{quote}
 
-The way we picked the new relations is the same idea as a normal vocabulary-coverage audit in ontology engineering: look at the fallbacks, find the most common missing patterns, add relations for those. The \texttt{[FALLBACK]} marker in Section~\ref{sec:fallback} makes this audit easy to do on any new domain.
+A \texttt{related\_to} relation is included as a deliberate fallback: when no other relation in the list fits a fact in the text, the model uses this one and prefixes the evidence string with \texttt{[FALLBACK]} (see Section~\ref{sec:fallback}). The visualization shows fallback edges in a distinct style, which makes vocabulary gaps visible and easy to audit for any new domain.
 
 \subsection{Output Schema}
 
-The extraction target is a JSON object with two arrays. Listing~\ref{lst:schema} shows the v2 schema (abbreviated). The v2 additions are \texttt{aliases} on nodes and \texttt{confidence} on edges.
+The extraction target is a JSON object with two arrays. Listing~\ref{lst:schema} shows the schema in abbreviated form.
 
-\begin{lstlisting}[label=lst:schema, caption={v2 output schema (abbreviated). Each node carries its source sentences and any aliases. Each edge carries the verbatim evidence sentence and a confidence value in [0,1].}]
+\begin{lstlisting}[label=lst:schema, caption={Output schema (abbreviated). Each node carries its source sentences and any aliases. Each edge carries the verbatim evidence sentence and a confidence value in [0,1].}]
 {
   "nodes": [{
     "id": "marie_curie",
@@ -182,14 +180,14 @@ The extraction target is a JSON object with two arrays. Listing~\ref{lst:schema}
     "type": "Person",
     "description": "Polish-born French physicist and chemist...",
     "source_sentences": ["Marie Curie was a Polish-born physicist..."],
-    "aliases": ["Maria Sklodowska"]              // v2
+    "aliases": ["Maria Sklodowska"]
   }],
   "edges": [{
     "source": "polonium",
     "target": "marie_curie",
-    "relation": "discovered_by",                  // v2 relation
+    "relation": "discovered_by",
     "evidence": "...they discovered the elements polonium and radium.",
-    "confidence": 0.95                            // v2
+    "confidence": 0.95
   }]
 }
 \end{lstlisting}
