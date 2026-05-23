@@ -275,7 +275,7 @@ export default function Home() {
         <div className="masthead-meta">
           <div>LLM-powered · multi-provider</div>
           <div>
-            <strong>Knowledge Engineering · CS585</strong>
+            <strong>Knowledge Engineering · CSCE526301</strong>
           </div>
         </div>
       </header>

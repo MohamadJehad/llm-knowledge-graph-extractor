@@ -1,6 +1,6 @@
 # LLM-Powered Knowledge Graph Extractor
 
-> Master's course project for **CS585 — Knowledge Engineering** at the American University in Cairo, Egypt.
+> Master's course project for **CSCE526301 — Knowledge Engineering** at the American University in Cairo, Egypt.
 > Author: *Mohamad Jehad Motaz Khachfa* (ID 800241913).
 
 A web application that takes any text and returns an interactive knowledge graph. The classic problem behind it is the **Knowledge Acquisition Bottleneck** — building knowledge bases by hand is slow and expensive. Large Language Models can now do most of this work in a single API call, and this project shows one way to make their output useful.
@@ -150,7 +150,7 @@ kg-extractor/
 
 ## Knowledge engineering rationale
 
-This project touches three of the main CS585 topics:
+This project touches three of the main CSCE526301 topics:
 
 1. **Knowledge Acquisition Bottleneck** — it replaces the manual, interview-based knowledge elicitation with an automated LLM-based extraction.
 2. **Knowledge Representation** — it uses a property-graph model with a controlled relation vocabulary, and also exports to RDF/Turtle for Semantic Web interoperability.
