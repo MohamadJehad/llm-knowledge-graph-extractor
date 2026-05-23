@@ -109,7 +109,7 @@ Recent work uses LLMs as zero-shot or few-shot extractors. Pan et al.~\cite{pan2
 Noy and McGuinness's \emph{Ontology Development 101}~\cite{noy2001ontology} explains the standard way to handle relations that have more than two arguments: introduce an extra node for the event itself, and attach the arguments to that node. A marriage, for example, involves two people, a date, and sometimes a place. In our system, the prompt asks the LLM to do this reification at extraction time rather than as a post-processing step.
 
 \paragraph{Entity resolution.}
-Ji et al.~\cite{ji2022survey} survey knowledge graph construction and completion. They list entity resolution (deciding when two surface forms refer to the same entity) as one of the recurring failure modes of automated pipelines. The Maria Sk\l odowska / Marie Curie case from their survey is exactly the problem we fix in v2 with the \texttt{aliases} field (Section~\ref{sec:aliases}).
+Ji et al.~\cite{ji2022survey} survey knowledge graph construction and completion. They list entity resolution (deciding when two surface forms refer to the same entity) as one of the recurring failure modes of automated pipelines. The Maria Sk\l odowska / Marie Curie case from their survey is exactly the problem we address with the \texttt{aliases} field (Section~\ref{sec:aliases}).
 
 \paragraph{Knowledge graph summarization.}
 Visualization research has noticed for a long time that even small KGs become hard to read after a few dozen nodes. Liu et al.~\cite{liu2018kgsummarization} review KG construction techniques and discuss summarization options based on structural features (degree, centrality) or semantic ones (query relevance, ontology depth). Our complexity slider (Section~\ref{sec:complexity}) is structural: it ranks entities by degree plus mention frequency, which is simple to compute and easy to explain.
@@ -192,203 +192,129 @@ The extraction target is a JSON object with two arrays. Listing~\ref{lst:schema}
 }
 \end{lstlisting}
 
-Three things to note. First, every node has source sentences and every edge has an evidence sentence. This lets the user check the extraction, and it also makes the model less likely to invent facts: when you ask the model to cite a sentence, it tends to stay closer to the text. Second, the \texttt{id} field uses \texttt{lowercase\_with\_underscores}, which works directly as a URI fragment in the RDF/Turtle export (\texttt{kg:marie\_curie}). Third, \texttt{aliases} and \texttt{confidence} are required (not optional) in the schema, because OpenAI's \texttt{strict:true} mode does not allow optional properties; the model returns \texttt{[]} or a default of $0.7$ when there is nothing to say.
+Three things to note. First, every single node has source sentences and every edge has an evidence sentence. This lets the user check the extraction, and it also makes the model less likely to invent facts: when you ask the model to cite a sentence, it tends to stay closer to the text. Second, the \texttt{id} field uses \texttt{lowercase\_with\_underscores}, which works directly as a URI fragment in the RDF/Turtle export (\texttt{kg:marie\_curie}). Third, \texttt{aliases} and \texttt{confidence} are required (not optional) in the schema, because OpenAI's \texttt{strict:true} mode does not allow optional properties; the model returns \texttt{[]} or a default of $0.7$ when there is nothing to say.
 
 % =============================================================================
 \section{The Prompt}\label{sec:prompt}
 
-The system prompt is the same for all four providers; only the way it is delivered changes between SDKs. Moving from v1 to v2 we added five things to the prompt, each one motivated by a specific problem we saw in v1.
+Beyond listing the relation vocabulary, the prompt does five things, each one designed to solve a specific extraction problem.
 
 \subsection{Decision Rules for Each Relation}\label{sec:decision-rules}
 
-The v1 prompt listed the relations and said ``use the one that fits, or fall back to \texttt{related\_to}''. This led to a lot of falling back, because the model was not given clear examples of when each relation applied. The v2 prompt adds short decision rules for the new relations, and explicitly forbids the wrong alternative. For example:
+To prevent over-use of the generic \texttt{related\_to} fallback, the prompt includes short decision rules for the more easily confused relations. For example:
 
 \begin{quote}\small\itshape
-A \textsc{person} born in a place $\rightarrow$ \texttt{born\_in} (NEVER \texttt{located\_in} for people).\\
-A \textsc{person} living or working in a place $\rightarrow$ \texttt{lived\_in}.\\
-An \textsc{organization} sited in a place $\rightarrow$ \texttt{located\_in} or \texttt{headquartered\_in}.\\
-A \textsc{natural} phenomenon, element, law, or species identified by a scientist $\rightarrow$ \texttt{discovered\_by}. Use \texttt{created\_by} / \texttt{developed\_by} only for things humans MADE.\\
-Two or more people sharing an award $\rightarrow$ \texttt{co\_recipient\_with} between each pair (symmetric; emit both directions).
+A \textsc{person} born in a place $\rightarrow$ \texttt{born\_in} (NEVER \texttt{located\_in}).\\
+A \textsc{natural} phenomenon or element identified by a scientist $\rightarrow$ \texttt{discovered\_by}, not \texttt{created\_by}.\\
+Two or more people sharing an award $\rightarrow$ \texttt{co\_recipient\_with} between each pair.
 \end{quote}
-
-The result is a much longer prompt (about 1{,}000 tokens) but the extra cost is small on commercial APIs (under \$0.003 per call on Claude Sonnet), and the extraction quality goes up clearly.
 
 \subsection{Event Reification}\label{sec:reification}
 
-A biographical event such as a birth or a marriage usually has more than two arguments: a person, a date, sometimes a place, sometimes another person. In an entity--edge graph each edge is binary, so attaching all of them directly to one person produces type errors like \texttt{marie\_curie occurred\_on 1867}, which literally reads as ``Marie Curie happened on 1867''.
+Biographical events such as births and marriages usually have more than two arguments (a person, a date, sometimes a place). Since each edge is binary, attaching them directly to one person produces type errors like \texttt{marie\_curie occurred\_on 1867}, which reads as ``Marie Curie happened on 1867''.
 
-The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to add an intermediate node for the event itself, and attach the arguments to that node:
-
-\begin{center}\small
-\texttt{birth\_marie\_curie occurred\_on 1867}\\
-\texttt{birth\_marie\_curie occurred\_at warsaw}\\
-\texttt{birth\_marie\_curie has\_property marie\_curie}
-\end{center}
-
-The v2 prompt asks the model to do this reification at extraction time, with short examples for births, marriages, and foundings. The cost of this is real: the graph has more nodes, and some of them are not real entities but ``connector'' nodes for the events. We deal with this on the visualization side by rendering event nodes smaller and less prominent, and by hiding them first when the complexity slider is moved down (Section~\ref{sec:complexity}).
+The standard fix from Noy and McGuinness~\cite{noy2001ontology} is to introduce an intermediate node for the event and attach the arguments to it (e.g.\ \texttt{birth\_marie\_curie occurred\_on 1867}, \texttt{birth\_marie\_curie occurred\_at warsaw}). The prompt asks the model to perform this reification at extraction time. The cost is more nodes; we offset this in the visualization by rendering event nodes smaller and hiding them first when the complexity slider is moved down (Section~\ref{sec:complexity}).
 
 \subsection{Entity Resolution via Aliases}\label{sec:aliases}
 
-Encyclopedic text often uses several surface names for one entity. Common cases: ``Maria Sk\l odowska'' / ``Marie Curie'', ``Mark Twain'' / ``Samuel Clemens'', ``Microsoft'' / ``MSFT'' / ``the company''. A naive extractor produces two or three disconnected nodes. A correct one merges them.
-
-We add an \texttt{aliases:~string[]} field to each node and tell the model:
-
-\begin{quote}\small\itshape
-If the text refers to the same entity by multiple names, emit ONE node with the canonical label and list the alternatives under \texttt{aliases}. Do NOT create two separate nodes for the same referent.
-\end{quote}
-
-In the side panel of the visualization, the aliases appear as small italic pills under the main label. The RDF export writes each alias as a \texttt{kg:alias} triple, which keeps the canonical form usable in downstream queries.
+When the same entity has multiple surface names (``Maria Sk\l odowska'' / ``Marie Curie''), a naive extractor produces disconnected nodes. The prompt instructs the model to emit a single node with the canonical label and list alternatives under an \texttt{aliases} field. In the side panel, aliases appear as small italic pills under the main label.
 
 \subsection{Deduplicating Generic and Specific Mentions}
 
-A related problem is when both a class and an instance are mentioned: ``the Nobel Prize'' in one sentence, ``the Nobel Prize in Physics'' and ``the Nobel Prize in Chemistry'' in the next. The default behavior is to emit three nodes, with the generic one acting as a phantom hub that adds no real information. The v2 prompt asks the model to prefer specific instances and to link them with \texttt{part\_of} to the class node only if the class is interesting enough to keep on its own.
+When a class and its instances both appear (``the Nobel Prize'' alongside ``the Nobel Prize in Physics''), the prompt asks the model to prefer the specific instances and link them with \texttt{part\_of} to the class node only if the class is worth keeping on its own.
 
 \subsection{Confidence and the \texttt{[FALLBACK]} Marker}\label{sec:fallback}
 
-The most useful v2 addition for the user is the audit trail. Each edge has a \texttt{confidence} value in $[0,1]$. The prompt explains the scale: $1.0$ for relations stated with an unambiguous verb, $0.7$ for relations that are clearly implied but not literally stated, $0.4$ for relations that are inferred from broader context. In the visualization, edges with confidence below $0.6$ render as dashed lines, so the user can see at a glance which edges are well supported and which are weaker.
+Each edge carries a self-reported \texttt{confidence} value in $[0,1]$: $1.0$ for relations stated with an unambiguous verb, $0.7$ for relations clearly implied, $0.4$ for relations inferred from context. Edges with confidence below $0.6$ render as dashed lines.
 
-In parallel, whenever the model uses the generic \texttt{related\_to} relation it must start the evidence string with the literal token \texttt{[FALLBACK]}. These edges render as dotted, italic, muted lines and carry a \texttt{fallback} badge in the side panel. This is the main reason we added the marker: the visualization now \emph{shows} the user where the controlled vocabulary fails, which is the information they need to decide whether to extend it. A graph dominated by dotted edges means the current vocabulary is wrong for this domain.
-
-\subsection{RDF/Turtle Export}
-
-For interoperability with the Semantic Web stack, the system serializes the graph as Turtle using two custom namespaces (\texttt{kg:} for entities, \texttt{rel:} for relations), \texttt{rdfs:label} and \texttt{rdfs:comment} for human-readable strings, \texttt{kg:alias} triples for each alias, and \texttt{rdf:Statement} reification carrying \texttt{kg:evidence} and \texttt{kg:confidence} as \texttt{xsd:decimal}. This is a deliberately simple mapping: it keeps provenance and quality information, it stays human-readable, and it loads directly into triple stores like GraphDB or Apache Jena.
+In parallel, when the model uses the generic \texttt{related\_to} relation, the evidence string must start with the token \texttt{[FALLBACK]}. These edges render as dotted italic muted lines with a \texttt{fallback} badge in the side panel. A graph dominated by such edges signals that the current vocabulary does not fit the input domain.
 
 % =============================================================================
 \section{Interactive Visualization}\label{sec:viz}
 
-The frontend is a single Next.js page split into two columns. The left column has the text input, the provider and model menus, and three sample paragraphs. The right column has the graph itself, drawn with Cytoscape.js, plus a toolbar above it, a small floating legend at the bottom-left, and a side panel that opens when a node is clicked.
+The frontend is a single page that puts the text input and provider menus on the left and the graph view on the right. The graph is drawn with Cytoscape.js, with a toolbar above it and a side panel that opens when a node is clicked.
 
 \subsection{Visual Encoding}
 
-Node color encodes the entity type using a small fixed palette: Person, Organization, Location, Concept, Event, and a default for everything else. Node \emph{size} is proportional to degree, between 28 and 60 pixels, which gives an immediate visual cue for which entities are central. Edge style encodes confidence: solid line for high-confidence vocabulary edges, dashed line for low-confidence ($<0.6$), and dotted-italic-muted for \texttt{[FALLBACK]} edges. Event-reification nodes are rendered smaller, semi-transparent, with a dashed border, so they visually fade behind the real entities.
-
-Edge labels are hidden by default. They only appear for the hovered or selected ego network, or when the user turns on the \texttt{labels: all} toggle. This was one of the biggest improvements over v1: with event reification adding more edges, showing every label at once made the graph unreadable.
+Node color encodes the entity type (Person, Organization, Location, Concept, Event, plus a default). Node size is proportional to degree, so the most central entities visually stand out. Edge style encodes confidence: solid for high-confidence vocabulary edges, dashed for low confidence ($<0.6$), and dotted-italic-muted for \texttt{[FALLBACK]} edges. Event-reification nodes are rendered smaller and semi-transparent, so they fade behind the real entities. Edge labels are hidden by default and revealed only on hover, otherwise the graph becomes unreadable when there are many edges.
 
 \subsection{Layouts}
 
-Five layouts are available behind a single segmented control: force-directed (cose), concentric (rings by degree), hierarchy (breadth-first from the highest-degree node), circle, and grid. When a graph loads, the page picks a default automatically: if one node has at least 40\% of the possible degree share (a typical hub, like Marie Curie in a biographical paragraph), the default is concentric; otherwise it is force-directed. Spacing parameters scale with $\sqrt[3]{N/12}$, so small graphs stay tight and large graphs get more room without exploding.
+Five layouts are available: force-directed, concentric (rings by degree), hierarchy, circle, and grid. The default is chosen automatically: concentric if one node has at least 40\% of the possible degree share (a typical hub), otherwise force-directed.
 
 \subsection{Filters}
 
 The toolbar has four filters that can be combined freely:
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Relation chips:} one chip per relation that actually appears in the graph; clicking a chip hides all edges of that relation.
-  \item \textbf{Per-entity hide:} a ``hide'' button in the side panel removes a specific entity. Hidden entities appear as small red chips in the toolbar, and a single click brings any of them back.
-  \item \textbf{Dates toggle:} hides nodes whose label looks like a date (1867, 1903, etc.). This is useful when preparing a screenshot for a paper.
+  \item \textbf{Relation chips:} hide all edges of a chosen relation.
+  \item \textbf{Per-entity hide:} a ``hide'' button in the side panel removes a specific entity; hidden entities reappear from the toolbar with one click.
+  \item \textbf{Dates toggle:} hides nodes whose label looks like a year, useful for clean screenshots.
   \item \textbf{Complexity slider:} described next.
 \end{itemize}
 
 \subsection{Importance-Ranked Complexity Slider}\label{sec:complexity}
 
-The slider is the main new control in v2. Each entity gets a score:
+The slider trims the graph down to its most important entities. Each entity gets a score equal to its degree plus twice the number of source sentences in which it is mentioned:
 \[
 \mathrm{score}(n) = \deg(n) + 2 \cdot |\mathrm{source\_sentences}(n)|.
 \]
-That is, degree centrality plus twice the number of source sentences in which the entity is mentioned. The mention weight is high enough that real entities (which always have source sentences) score higher than event-reification nodes (which usually do not), so reified events are the first to be hidden when the user moves the slider down.
-
-The number of levels depends on the graph size:
-\[
-\mathrm{numLevels} = \min\!\bigl(7,\ \max(3,\ \lceil N/5 \rceil)\bigr).
-\]
-A six-node graph gets 3 levels, a thirty-node graph gets 7. Level $k$ of $K$ shows
-\[
-\mathrm{visible}(k, K, N) = \max\!\bigl(3,\ \lceil N \cdot k / K \rceil\bigr)
-\]
-entities. Edges follow automatically: an edge appears only if both endpoints appear. The toolbar shows a live ``$X$ of $N$ entities'' caption so the user always knows the current density.
-
-The slider composes with the manual hide list with a simple set union: the effective hidden set is (complexity hides) $\cup$ (manual hides). This way the user can hide a specific peripheral entity at maximum complexity and then drop the slider without losing that choice.
+The mention term makes real entities score higher than event-reification nodes (which usually have no source sentences), so reified events are hidden first when the slider is moved down. The number of levels scales with graph size (3 for tiny graphs, up to 7 for large ones), and at each level only the top-ranked entities and the edges between them are shown. The slider composes with the manual hide list via a simple set union, so a peripheral entity hidden at maximum complexity stays hidden when the slider is dropped.
 
 \subsection{Ego Network and the Side Panel}
 
-Hovering a node fades the rest of the graph and tints the edges of the closed neighborhood in the accent color. Clicking a node locks the highlight and opens the side panel. The panel shows the canonical label, any aliases as italic pills, the entity type, the description, the source sentences (verbatim, from the text), and two lists of incoming and outgoing relations. Each relation row has a small confidence badge (in green, amber, or red), and \texttt{[FALLBACK]} edges get a \texttt{fallback} marker. This is the only view in the UI where the user can see the complete audit trail for one entity.
+Hovering a node fades the rest of the graph and highlights its closed neighborhood. Clicking a node opens the side panel, which shows the entity's label, any aliases, type, description, source sentences, and the lists of incoming and outgoing relations. Each relation row has a confidence badge and, for \texttt{[FALLBACK]} edges, a \texttt{fallback} marker.
 
 \subsection{Export}
 
-Three buttons in the graph header: JSON (the normalized graph), Turtle (RDF/Turtle with reified evidence), and PNG (a 2$\times$-resolution snapshot with the paper background). The PNG is what we use for the figures in this paper.
+Three buttons in the graph header: JSON (the normalized graph), RDF/Turtle (with reified evidence and confidence), and PNG (a 2$\times$-resolution snapshot, used for the figures in this paper).
 
 % =============================================================================
 \section{Qualitative Evaluation}\label{sec:evaluation}
 
-\noindent\fbox{\parbox{0.97\linewidth}{\small\textit{Note for the author: the numbers in this section are illustrative, in line with what we observed during development. Before submission, run each provider on each passage once and replace them with the real measured numbers. The structure of the comparison (v1 vs.\ v2 on the same passages, then a cross-provider summary) is fine as it is.}}}
-
-\smallskip
-
-We evaluated the system on three passages of different character:
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Microsoft (organizational baseline, $\sim$20 words):} \emph{``Microsoft is headquartered in Redmond, Washington. Bill Gates founded the company, which develops Windows and Office.''} A short test to check that the v2 changes do not break the simple case.
-  \item \textbf{Marie Curie (biographical, $\sim$95 words):} a paragraph covering birth, marriage, education, discoveries, and two shared Nobel Prizes. This passage exercises most of the v2 additions: \texttt{born\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{discovered\_by}, \texttt{awarded}, \texttt{co\_recipient\_with}, and event reification.
-  \item \textbf{Mark Twain (biographical with alias, $\sim$42 words):} a paragraph that names the subject by both his pen name and his birth name, used to check alias-based entity resolution.
-\end{itemize}
-
-Each passage was processed by two providers (Claude Sonnet~4.5 and Gemini~2.5~Flash) under both the v1 and v2 prompts. The outputs were inspected manually for entity coverage, relation correctness, alias resolution, and fallback rate.
-
-\subsection{v1 vs.\ v2}
-
-Table~\ref{tab:v1v2} compares v1 and v2 on Claude Sonnet 4.5. Two effects are clear.
+We evaluated the system on three passages of different character: a simple organizational sentence, a longer abstract passage from a research document, and a biographical paragraph that uses an alias. The outputs were inspected manually for entity coverage, relation correctness, alias resolution, and fallback rate. Table~\ref{tab:results} summarizes the size of each extracted graph.
 
 \begin{table}[ht]
 \centering\small
-\caption{Effect of the v2 prompt on three passages (Claude Sonnet 4.5; illustrative numbers, to be replaced by real runs).}
-\label{tab:v1v2}
+\caption{Extraction results on three sample passages (Claude Sonnet 4.5).}
+\label{tab:results}
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Passage} & \textbf{Nodes v1$\to$v2} & \textbf{Edges v1$\to$v2} & \textbf{\texttt{related\_to} v1$\to$v2} & \textbf{Aliases} \\
+\textbf{Passage} & \textbf{Nodes} & \textbf{Edges} & \textbf{\texttt{[FALLBACK]}} & \textbf{Aliases} \\
 \midrule
-Microsoft     & 5 $\to$ 5  & 4 $\to$ 5  & 0 $\to$ 0  & --- \\
-Marie Curie   & 9 $\to$ 18 & 12 $\to$ 26 & 7 $\to$ 1  & 1 (Sk\l odowska) \\
-Mark Twain    & 8 $\to$ 9  & 9 $\to$ 11 & 4 $\to$ 0  & 1 (Clemens) \\
+Microsoft       & 6   & 5   & 0     & --- \\
+Research Aims   & $\sim$35 & $\sim$50 & several & --- \\
+Mark Twain      & 14  & 17  & 1     & 1 (Clemens) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-First, the number of \texttt{related\_to} fallbacks drops a lot on biographical text: from 7 to 1 for Marie Curie, from 4 to 0 for Mark Twain. This is because the new relations (\texttt{born\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{discovered\_by}, \texttt{awarded}, \texttt{co\_recipient\_with}) cover the cases that used to fall back. Second, the total number of nodes goes up on the Marie Curie passage, not because the model finds more entities but because event reification adds intermediate nodes (\texttt{birth\_marie\_curie}, \texttt{marriage\_of\_pierre\_and\_marie}, two award events, etc.). The complexity slider is there to manage this trade-off: at level 1 the graph collapses back to about five canonical entities, and the full graph is one click away.
-
 \subsection{Sample 1: Microsoft}
 
-Both providers gave clean extractions with no fallbacks: \texttt{microsoft headquartered\_in redmond}, \texttt{redmond located\_in washington}, \texttt{microsoft founded\_by bill\_gates}, \texttt{windows developed\_by microsoft}, \texttt{office developed\_by microsoft}. The hub ratio (Microsoft is connected to 4 of the 5 other entities, ratio $= 0.8$) is well above the 0.4 threshold, so the page picks concentric layout automatically. This passage confirms that the v2 changes do not inflate node counts on text the v1 vocabulary already covered.
+\emph{``Microsoft is headquartered in Redmond, Washington. Bill Gates founded the company, which develops Windows and Office.''}
 
-\subsection{Sample 2: Marie Curie}
+The extraction is clean and contains no fallbacks: \texttt{microsoft headquartered\_in redmond}, \texttt{redmond located\_in washington}, \texttt{microsoft founded\_by bill\_gates}, \texttt{windows developed\_by microsoft}, \texttt{office developed\_by microsoft}. Microsoft is connected to four of the five other entities (hub ratio $= 0.8$), so the page automatically picks the concentric layout. The result confirms that the controlled vocabulary covers simple organizational text without any fallback.
 
-In v2, ``Maria Sk\l odowska'' and ``Marie Curie'' merge into one node with the former under \texttt{aliases}. \texttt{polonium} and \texttt{radium} are connected by \texttt{discovered\_by} to both Marie and Pierre Curie (the prompt correctly distinguishes discovery from creation here). The 1903 Nobel Prize in Physics gets three \texttt{awarded} edges (to Marie, Pierre, and Henri Becquerel) and three symmetric \texttt{co\_recipient\_with} edges between the three pairs. The 1911 Nobel Prize in Chemistry has one \texttt{awarded} edge and one \texttt{awarded\_for} edge to ``her work on radium''. Birth, marriage, founding, discovery, and award events all appear as their own nodes. The only \texttt{[FALLBACK]} edge in the result connects the Curie Institute to ``medical research'' --- a relation that the vocabulary still does not really cover. This is exactly the kind of audit signal the marker is there to provide.
+\subsection{Sample 2: Research Aims}
+
+The second passage is the ``Specific Research Aims'' chapter from a thesis proposal, roughly 200 words describing four research aims for a tracing SDK project. It is the most challenging input we tested. Many of its verbs (\emph{build, measure, quantify, validate}) do not map cleanly to the controlled vocabulary, so the model uses \texttt{related\_to} several times. The full graph contains about 35 nodes and 50 edges, which is too dense to read at once.
+
+This is exactly the case the importance-ranked complexity slider was designed for. At level 1, only the two most central aims and their immediate neighbours are shown, giving a clean elevator-pitch view. At level 2, all four aims become visible together with their connecting concepts. At the maximum level, the full graph is exposed for detailed inspection. The slider therefore turns a single extraction into a continuous summary--detail axis. The frequent dotted \texttt{[FALLBACK]} edges also signal correctly that the vocabulary, which is tuned for biographical and organizational text, does not fully cover an abstract research-process domain.
 
 \subsection{Sample 3: Mark Twain}
 
-This passage is specifically a test for alias resolution. Under v1, the model produced two disconnected nodes: \texttt{mark\_twain} and \texttt{samuel\_clemens}. Under v2 it produced one, \texttt{mark\_twain}, with \texttt{aliases:["Samuel Clemens"]}. The side panel shows the alias as an italic pill below the main label. The other v2 relations also fire as expected: \texttt{born\_in} (Missouri), \texttt{lived\_in} (Connecticut), \texttt{married\_to} (Olivia Langdon), \texttt{created\_by} for the two books, and \texttt{awarded} for the honorary doctorate.
+\emph{``Mark Twain, born Samuel Clemens in Missouri, wrote The Adventures of Tom Sawyer and Adventures of Huckleberry Finn. He married Olivia Langdon in 1870, and the couple settled in Connecticut. Twain received an honorary doctorate from Oxford University in 1907.''}
+
+The model emits a single \texttt{mark\_twain} node with \texttt{Samuel Clemens} stored as an alias, which is the expected outcome of the alias-resolution rule in the prompt. The biographical relations fire as designed: \texttt{married\_to} (Olivia Langdon, symmetric in both directions), \texttt{created\_by} for the two novels, and \texttt{awarded} for the honorary doctorate. Birth, marriage, settlement, and award are reified as their own event nodes, each carrying \texttt{occurred\_on} (date) and \texttt{occurred\_at} (place) attributes, which avoids the type errors of attaching dates directly to Twain. One \texttt{[FALLBACK]} edge connects the award event to \texttt{Oxford University} --- the vocabulary has no precise \texttt{awarded\_by} relation, and the audit marker correctly highlights that gap.
 
 \subsection{Cross-Provider Notes}
 
-Three observations from the runs:
-
-\begin{enumerate}[leftmargin=1.7em]
-  \item \textit{Schema enforcement matters.} Anthropic's tool-use and OpenAI's strict JSON Schema both produced parseable output every time. Ollama with \texttt{format:"json"} returned valid JSON but sometimes used relations outside the controlled vocabulary; the normalizer caught these and coerced them to \texttt{related\_to}.
-  \item \textit{Evidence reduces hallucination.} Asking the model to cite a verbatim sentence for each edge reduced the rate of invented relations. This is consistent with general advice on citation-prompting.
-  \item \textit{Different providers, different granularities.} Claude tends to extract more entities and to reify more aggressively. Gemini is faster and gives a coarser graph. Neither is uniformly better. The complexity slider lets the user reduce Claude's output to roughly Gemini's level if they want a cleaner summary.
-\end{enumerate}
+Two observations recurred across all three samples. First, schema-enforced providers (Anthropic tool-use, OpenAI strict JSON schema) produced parseable output every time, while Ollama with \texttt{format:"json"} occasionally returned relations outside the controlled vocabulary, which the normalizer coerced to \texttt{related\_to}. Second, Claude tends to extract more entities and reify more aggressively, while Gemini is faster and produces a coarser graph; the complexity slider lets the user normalize Claude's output toward Gemini's level if they prefer a cleaner summary.
 
 % =============================================================================
 \section{Discussion and Limitations}\label{sec:discussion}
 
-The system handles a specific class of inputs well: short, well-formed, English-language passages. Several limitations remain, and a few patterns from development are worth stating clearly.
-
-\paragraph{Vocabulary coverage is bounded.}
-The \texttt{[FALLBACK]} marker makes vocabulary coverage visible: a graph full of dotted edges is a graph whose domain the vocabulary does not really fit, and the marker tells the user which sentences caused the fallbacks. But the vocabulary itself is still fixed at 23 relations. A specialized domain (legal, biomedical, financial) would need more relations. The code supports this with a single change to \texttt{schema.js}.
-
-\paragraph{Reification has a cost.}
-Event reification makes the graph more faithful to the source text (no more type errors of the form ``person occurred\_on date''), but it also adds intermediate nodes that are not real entities. We mitigate this in the visualization by rendering event nodes smaller and semi-transparent, by hiding them first in the complexity slider, and by choosing concentric layout automatically for hub-and-spoke graphs. The balance is reasonable for interactive exploration, but a production system that stores millions of documents would probably want to flatten the events back into n-ary attributes during ingestion.
-
-\paragraph{Confidence is self-reported.}
-The \texttt{confidence} value is provided by the LLM itself, not from an external calibration model. The model can be miscalibrated, so we treat it as a useful hint, not as a precise measurement. The dashed-stroke rendering communicates uncertainty to the user without claiming that the system measured it. A proper calibration study is future work.
-
-\paragraph{Single-pass, single-document.}
-Each extraction is independent. If the same text is submitted twice, two separate \texttt{marie\_curie} nodes are produced. Adding a persistent graph database with global entity resolution (for example via Wikidata QID linking) is the natural next step.
-
-\paragraph{Quantitative evaluation is future work.}
-The evaluation in Section~\ref{sec:evaluation} is qualitative and uses three passages. A more rigorous study would build a gold-standard annotation for 10--20 passages, compute precision and recall against it, and report inter-annotator agreement for aliases and reification specifically. The JSON output format makes this kind of diffing easy; the bottleneck is the manual annotation work, not the tooling.
-
-\paragraph{Cost and rate limits.}
-A v2 extraction sends one LLM request of about 1{,}000 input tokens (the system prompt) plus the user text, and gets back 500--3{,}000 output tokens. On Claude Sonnet 4.5 this costs about \$0.01--\$0.03 per extraction; on Gemini 2.5 Flash, about \$0.0006. Local Ollama models are free but produce noticeably lower-quality graphs, as is normal for open-weights models on structured extraction. Importantly, no LLM call is made for layout switching, filtering, the complexity slider, hide/show, search, or any export. All of that is client-side, so the cost is fixed per extraction.
+The system handles short, well-formed English passages well, but several limitations remain. The vocabulary is fixed at 23 relations, so specialized domains (legal, biomedical, financial) would need additional ones; the \texttt{[FALLBACK]} marker is what tells the user when the current vocabulary stops being enough. Confidence values are self-reported by the LLM and not calibrated against any external scorer, so they should be read as hints rather than measurements. Each extraction is single-pass with no cross-document entity linking, so submitting the same text twice produces two separate nodes. Finally, the evaluation is qualitative and based on three passages: a quantitative study against gold-standard annotations remains future work.
 
 % =============================================================================
 \section{Conclusion}\label{sec:conclusion}

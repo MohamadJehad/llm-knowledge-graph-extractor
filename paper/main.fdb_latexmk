@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1779538034.6904 "c:/Users/User/Desktop/files/kg-extractor/kg-extractor/paper/main.tex" "main.pdf" "main" 1779538036.00411 0
+["pdflatex"] 1779539464.69477 "c:/Users/User/Desktop/files/kg-extractor/kg-extractor/paper/main.tex" "main.pdf" "main" 1779539465.88383 0
   "C:/Users/User/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1779497742 82507 a9eef8696c92627b87e9975edea03b2a ""
   "C:/Users/User/AppData/Local/MiKTeX/miktex/data/le/pdftex/pdflatex.fmt" 1779487405 13333003 eaa2fd736f9a6fea78236e6bf55f8e60 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/base/8r.enc" 1458473887 4993 80dc9bab7f31fb78a000ccfed0e27cab ""
@@ -37,10 +37,8 @@
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/tfm/public/cm/cmsy10.tfm" 1136765053 1124 6c73e740cf17375f03eec0ee63599741 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/tfm/public/cm/cmsy6.tfm" 1136765053 1116 933a60c408fc0a863a92debe84b2d294 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/tfm/public/cm/cmsy8.tfm" 1136765053 1120 8b7d695260f3cff42e636090a8002094 ""
-  "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb" 1247596667 30251 6afa5cb1d0204815a708a080681d4674 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb" 1247596667 36299 5f9df58c2139e7edcf37c8fca4bd384d ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1247596667 35752 024fb6c41858982481f6968b5fc26508 ""
-  "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr6.pfb" 1247596667 32734 69e00a6b65cedb993666e42eedb3d48f ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb" 1247596667 32569 5e5ddc8df908dea60932f3c484a54c0d ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrb8a.pfb" 1136846148 50493 4ed1f7e9eba8f1f3e1ec25195460190d ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrr8a.pfb" 1136846148 45758 19968a0990191524e34e1994d4a31cb6 ""
@@ -122,10 +120,10 @@
   "C:/Users/User/AppData/Local/Programs/MiKTeX/tex/latex/titlesec/titlesec.sty" 1736608268 48766 87a17a4ef312a39cd43896e34a679a56 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/tex/latex/url/url.sty" 1388490452 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "C:/Users/User/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/xcolor.sty" 1729265222 55384 b454dec21c2d9f45ec0b793f0995b992 ""
-  "c:/Users/User/Desktop/files/kg-extractor/kg-extractor/paper/main.tex" 1779538032 41684 9a96666e8469f28b5949869acd5b1109 ""
-  "main.aux" 1779538035 8886 27685fe5013fe7ac701035be06b8f1b9 "pdflatex"
-  "main.out" 1779538035 4812 225da01d2475794b0167a1581aca4447 "pdflatex"
-  "main.tex" 1779538032 41684 9a96666e8469f28b5949869acd5b1109 ""
+  "c:/Users/User/Desktop/files/kg-extractor/kg-extractor/paper/main.tex" 1779539463 35059 7061849c2debfd7447aad24308ae1912 ""
+  "main.aux" 1779539465 8540 cb57dcb91a6d1fc61a4f1a4ac3e38400 "pdflatex"
+  "main.out" 1779539465 4577 6acea007d018f781a8bf81d36dfd9524 "pdflatex"
+  "main.tex" 1779539463 35059 7061849c2debfd7447aad24308ae1912 ""
   (generated)
   "main.aux"
   "main.log"
