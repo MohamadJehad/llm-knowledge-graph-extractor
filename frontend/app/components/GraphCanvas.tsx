@@ -24,10 +24,35 @@ interface Props {
   graph: KGGraph;
   layoutName: string;
   hiddenRelations: Set<string>;
+  hiddenNodeIds: Set<string>;
   search: string;
+  hideDates: boolean;
+  showAllLabels: boolean;
   onNodeClick: (node: KGNode) => void;
   onBackgroundClick: () => void;
   onReady?: (handle: GraphCanvasHandle | null) => void;
+}
+
+// Treat a node as a "date" if its label looks like a year/date OR its type
+// is explicitly Date. Used by the hide-dates toggle.
+function isPureDateNode(label: string, type: string): boolean {
+  const lbl = String(label || '').trim();
+  if (/^\d{3,4}(-\d{1,2})?(-\d{1,2})?$/.test(lbl)) return true;
+  return (type || '').toLowerCase() === 'date';
+}
+
+// Heuristic for an event-reification node introduced by the v2 prompt.
+// These are infrastructure nodes (birth_/marriage_/founding_/discovery_/award_…)
+// and we render them smaller and quieter than real entities.
+const EVENT_ID_PREFIX = /^(birth_|death_|marriage_|founding_|discovery_|award_|publication_|move_|moves_|movement_)/i;
+const EVENT_LABEL_PREFIX = /^(birth of|death of|marriage of|founding of|discovery of|award of|publication of|move(?:ment)? of|moves to|moved to)\b/i;
+
+function isEventReificationNode(id: string, label: string, type: string): boolean {
+  const t = (type || '').toLowerCase();
+  if (t === 'event') return true;
+  if (EVENT_ID_PREFIX.test(id || '')) return true;
+  if (EVENT_LABEL_PREFIX.test(label || '')) return true;
+  return false;
 }
 
 function colorForType(type: string): string {
@@ -61,17 +86,23 @@ function alive(cy: Core | null | undefined): cy is Core {
 }
 
 function layoutOptions(name: string, graph: KGGraph): any {
-  const base = { animate: true, animationDuration: 600, padding: 50, fit: true };
+  const base = { animate: true, animationDuration: 700, padding: 50, fit: true };
+  // Density-aware scaling: small graphs want tight layouts; large graphs need
+  // proportionally more space. The exponent is gentle (1/3 power) so distances
+  // don't blow up on bigger graphs.
+  const N = Math.max(graph.nodes.length, 1);
+  const sizeBoost = Math.max(1, Math.cbrt(N / 12));
   switch (name) {
     case 'cose':
       return {
         ...base,
         name: 'cose',
-        nodeRepulsion: 9000,
-        idealEdgeLength: 130,
-        edgeElasticity: 100,
-        gravity: 0.35,
-        numIter: 1000,
+        nodeRepulsion: 11000 * sizeBoost,
+        idealEdgeLength: 140 * sizeBoost,
+        edgeElasticity: 70,
+        gravity: 0.28,
+        numIter: 1200,
+        nodeDimensionsIncludeLabels: true,
       };
     case 'concentric':
       return {
@@ -79,7 +110,8 @@ function layoutOptions(name: string, graph: KGGraph): any {
         name: 'concentric',
         concentric: (n: any) => n.degree(),
         levelWidth: () => 2,
-        minNodeSpacing: 50,
+        minNodeSpacing: 55 * sizeBoost,
+        nodeDimensionsIncludeLabels: true,
       };
     case 'breadthfirst': {
       const degree: Record<string, number> = {};
@@ -134,7 +166,10 @@ export default function GraphCanvas({
   graph,
   layoutName,
   hiddenRelations,
+  hiddenNodeIds,
   search,
+  hideDates,
+  showAllLabels,
   onNodeClick,
   onBackgroundClick,
   onReady,
@@ -169,27 +204,45 @@ export default function GraphCanvas({
     };
 
     const elements = [
-      ...graph.nodes.map((n) => ({
-        data: {
-          id: n.id,
-          label: n.label,
-          type: n.type,
-          color: resolveCssVar(colorForType(n.type)),
-          size: sizeFor(n.id),
-          degree: degree[n.id] || 0,
-          raw: n,
-        },
-      })),
-      ...graph.edges.map((e, idx) => ({
-        data: {
-          id: `e_${idx}_${e.source}_${e.target}`,
-          source: e.source,
-          target: e.target,
-          label: e.relation.replace(/_/g, ' '),
-          relation: e.relation,
-          raw: e,
-        },
-      })),
+      ...graph.nodes.map((n) => {
+        const isEvent = isEventReificationNode(n.id, n.label, n.type);
+        // Event reifications (e.g., "Birth of Maria Skłodowska") are connector
+        // nodes — render them smaller and quieter so they don't compete with
+        // the real entities.
+        const baseSize = sizeFor(n.id);
+        const size = isEvent ? Math.min(baseSize * 0.65, 26) : baseSize;
+        return {
+          data: {
+            id: n.id,
+            label: n.label,
+            type: n.type,
+            color: resolveCssVar(colorForType(n.type)),
+            size,
+            degree: degree[n.id] || 0,
+            isEvent: isEvent ? 1 : 0,
+            raw: n,
+          },
+        };
+      }),
+      ...graph.edges.map((e, idx) => {
+        const confidence = typeof e.confidence === 'number' ? e.confidence : 0.7;
+        const isFallback =
+          typeof e.evidence === 'string' && e.evidence.trim().startsWith('[FALLBACK]');
+        return {
+          data: {
+            id: `e_${idx}_${e.source}_${e.target}`,
+            source: e.source,
+            target: e.target,
+            label: e.relation.replace(/_/g, ' '),
+            relation: e.relation,
+            confidence,
+            // Cytoscape selectors compare strings/numbers but not booleans well;
+            // store as 1/0 so the [isFallback = 1] selector works.
+            isFallback: isFallback ? 1 : 0,
+            raw: e,
+          },
+        };
+      }),
     ];
 
     const ink = resolveCssVar('var(--ink)') || '#1a1814';
@@ -209,13 +262,19 @@ export default function GraphCanvas({
             label: 'data(label)',
             color: ink,
             'font-family': 'Crimson Pro, Georgia, serif',
-            'font-size': 14,
+            'font-size': 13,
             'font-weight': 500,
             'text-valign': 'bottom',
             'text-halign': 'center',
-            'text-margin-y': 7,
+            'text-margin-y': 6,
             'text-wrap': 'wrap',
-            'text-max-width': 140,
+            'text-max-width': 110,
+            // Paper-coloured halo behind labels so they stay legible when
+            // an edge passes underneath.
+            'text-background-color': bgPaper,
+            'text-background-opacity': 0.85,
+            'text-background-padding': '3px',
+            'text-background-shape': 'roundrectangle',
             width: 'data(size)',
             height: 'data(size)',
             'border-width': 2.5,
@@ -223,6 +282,20 @@ export default function GraphCanvas({
             'overlay-padding': 6,
             'transition-property': 'opacity, border-color, border-width, width, height',
             'transition-duration': 220,
+          },
+        },
+        // Event-reification nodes (Birth of X, Marriage of Y, …) are structural
+        // connectors. Render them smaller and quieter so the real entities pop.
+        {
+          selector: 'node[isEvent = 1]',
+          style: {
+            'background-opacity': 0.55,
+            'border-style': 'dashed',
+            'border-color': inkFaint,
+            'border-width': 1.5,
+            'font-style': 'italic',
+            'font-size': 11,
+            color: inkSoft,
           },
         },
         {
@@ -248,13 +321,17 @@ export default function GraphCanvas({
         {
           selector: 'edge',
           style: {
-            width: 1.4,
+            width: 1.3,
             'line-color': inkFaint,
             'curve-style': 'bezier',
             'target-arrow-shape': 'triangle',
             'target-arrow-color': inkFaint,
-            'arrow-scale': 1.2,
-            label: 'data(label)',
+            'arrow-scale': 1.1,
+            // Edge labels are HIDDEN by default — they're the main source of
+            // visual clutter when the graph is dense. We only show a label
+            // when the edge is highlighted (hovered/selected ego network) or
+            // when the user toggles "labels: on" via the toolbar.
+            label: '',
             'font-family': 'JetBrains Mono, monospace',
             'font-size': 10,
             color: inkSoft,
@@ -265,6 +342,12 @@ export default function GraphCanvas({
             'transition-property': 'opacity, line-color, width, target-arrow-color',
             'transition-duration': 220,
           },
+        },
+        // Reveal edge labels for the hovered/selected ego network and when
+        // the user explicitly toggles all labels on.
+        {
+          selector: 'edge.highlighted, edge:selected, edge.show-label',
+          style: { label: 'data(label)' },
         },
         {
           selector: 'edge.dimmed',
@@ -284,8 +367,29 @@ export default function GraphCanvas({
           selector: 'edge:selected',
           style: { 'line-color': ink, 'target-arrow-color': ink, width: 2 },
         },
+        // Low-confidence edges render as dashed lines.
         {
-          selector: '.hidden-edge',
+          selector: 'edge[confidence < 0.6]',
+          style: { 'line-style': 'dashed' },
+        },
+        // Generic `related_to` fallbacks are rendered as a quieter dotted line —
+        // they remain visible but read as "soft" knowledge.
+        {
+          selector: 'edge[isFallback = 1]',
+          style: {
+            'line-style': 'dotted',
+            'line-color': inkFaint,
+            'target-arrow-color': inkFaint,
+            color: inkFaint,
+            'font-style': 'italic',
+          },
+        },
+        {
+          selector: '.hidden-edge, .hidden-by-node',
+          style: { display: 'none' },
+        },
+        {
+          selector: 'node.hidden-node',
           style: { display: 'none' },
         },
       ] as any),
@@ -443,6 +547,34 @@ export default function GraphCanvas({
       cy.edges(`[relation = "${rel}"]`).addClass('hidden-edge');
     });
   }, [hiddenRelations]);
+
+  // Toggle the "show all edge labels" mode. Default is off, which keeps the
+  // canvas legible; the user opts in when they want to inspect every relation.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!alive(cy)) return;
+    if (showAllLabels) cy.edges().addClass('show-label');
+    else cy.edges().removeClass('show-label');
+  }, [showAllLabels]);
+
+  // Unified node-visibility effect: combines the "hide dates" toggle and the
+  // user's per-entity hide list. Both write to the same `.hidden-node` class
+  // so we recompute the full set whenever either input changes — otherwise
+  // toggling one would clobber the other.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!alive(cy)) return;
+    cy.nodes().removeClass('hidden-node');
+    cy.edges().removeClass('hidden-by-node');
+    const toHide = cy.nodes().filter((n) => {
+      if (hiddenNodeIds.has(String(n.id()))) return true;
+      if (hideDates && isPureDateNode(n.data('label'), n.data('type'))) return true;
+      return false;
+    });
+    if (toHide.length === 0) return;
+    toHide.addClass('hidden-node');
+    toHide.connectedEdges().addClass('hidden-by-node');
+  }, [hideDates, hiddenNodeIds]);
 
   // Apply search highlight + zoom-to-matches.
   useEffect(() => {

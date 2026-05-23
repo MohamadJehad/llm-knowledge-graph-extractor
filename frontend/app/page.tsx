@@ -28,6 +28,10 @@ export default function Home() {
   const [layout, setLayout] = useState<string>('cose');
   const [search, setSearch] = useState<string>('');
   const [hiddenRelations, setHiddenRelations] = useState<Set<string>>(new Set());
+  const [hideDates, setHideDates] = useState<boolean>(false);
+  const [showAllLabels, setShowAllLabels] = useState<boolean>(false);
+  // User-driven per-entity hide list (independent of the dates filter).
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   // The canvas hands us back an imperative handle via onReady; we hold it in
   // a ref so toolbar callbacks can call into it without re-rendering.
   const canvasRef = useRef<GraphCanvasHandle | null>(null);
@@ -61,12 +65,26 @@ export default function Home() {
     if (currentProvider) setModel(currentProvider.defaultModel);
   }, [currentProvider]);
 
-  // Reset graph-view state whenever a new graph is loaded
+  // Reset graph-view state whenever a new graph is loaded.
+  // Smart default layout: if the graph has a clear "hub" (one node connected
+  // to ≥40% of all others), use Concentric — it renders hub-and-spoke graphs
+  // much more legibly than Force.
   useEffect(() => {
     setSearch('');
     setHiddenRelations(new Set());
-    setLayout('cose');
+    setHideDates(false);
+    setShowAllLabels(false);
+    setHiddenNodeIds(new Set());
     setSelectedNode(null);
+    if (!graph) return;
+    const degree: Record<string, number> = {};
+    for (const e of graph.edges) {
+      degree[e.source] = (degree[e.source] || 0) + 1;
+      degree[e.target] = (degree[e.target] || 0) + 1;
+    }
+    const maxDeg = Math.max(0, ...Object.values(degree));
+    const hubRatio = maxDeg / Math.max(1, graph.nodes.length - 1);
+    setLayout(hubRatio >= 0.4 ? 'concentric' : 'cose');
   }, [graph]);
 
   const availableRelations = useMemo(() => {
@@ -152,6 +170,34 @@ export default function Home() {
   };
 
   const showAllRelations = () => setHiddenRelations(new Set());
+
+  const hideNodeById = (id: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    // The selected entity is the one being hidden — close the panel so the
+    // user doesn't see details of an off-screen node.
+    setSelectedNode(null);
+  };
+
+  const unhideNodeById = (id: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const showAllHidden = () => setHiddenNodeIds(new Set());
+
+  const hiddenNodesList = useMemo(() => {
+    if (!graph || hiddenNodeIds.size === 0) return [];
+    return graph.nodes
+      .filter((n) => hiddenNodeIds.has(n.id))
+      .map((n) => ({ id: n.id, label: n.label }));
+  }, [graph, hiddenNodeIds]);
 
   const hasGraph = graph && graph.nodes.length > 0;
 
@@ -287,6 +333,13 @@ export default function Home() {
               hiddenRelations={hiddenRelations}
               onToggleRelation={toggleRelation}
               onShowAllRelations={showAllRelations}
+              hideDates={hideDates}
+              onToggleHideDates={() => setHideDates((v) => !v)}
+              showAllLabels={showAllLabels}
+              onToggleShowAllLabels={() => setShowAllLabels((v) => !v)}
+              hiddenNodes={hiddenNodesList}
+              onUnhideNode={unhideNodeById}
+              onShowAllHidden={showAllHidden}
               onZoomIn={() => canvasRef.current?.zoomIn()}
               onZoomOut={() => canvasRef.current?.zoomOut()}
               onFit={() => canvasRef.current?.fit()}
@@ -322,7 +375,10 @@ export default function Home() {
                 graph={graph}
                 layoutName={layout}
                 hiddenRelations={hiddenRelations}
+                hiddenNodeIds={hiddenNodeIds}
                 search={search}
+                hideDates={hideDates}
+                showAllLabels={showAllLabels}
                 onNodeClick={handleNodeClick}
                 onBackgroundClick={handleBackgroundClick}
                 onReady={handleCanvasReady}
@@ -344,6 +400,7 @@ export default function Home() {
                 node={selectedNode}
                 graph={graph}
                 onClose={() => setSelectedNode(null)}
+                onHide={() => hideNodeById(selectedNode.id)}
               />
             )}
           </div>

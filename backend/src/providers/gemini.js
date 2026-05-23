@@ -5,7 +5,7 @@ import { SYSTEM_PROMPT, RELATION_VOCABULARY, normalizeGraph } from '../schema.js
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // Gemini's SchemaType uses different enum constants from raw JSON Schema, so we
-// build an equivalent schema using its SDK types.
+// build an equivalent schema using its SDK types. Mirrors GRAPH_JSON_SCHEMA.
 const GEMINI_SCHEMA = {
   type: SchemaType.OBJECT,
   properties: {
@@ -22,8 +22,12 @@ const GEMINI_SCHEMA = {
             type: SchemaType.ARRAY,
             items: { type: SchemaType.STRING },
           },
+          aliases: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
         },
-        required: ['id', 'label', 'type', 'description', 'source_sentences'],
+        required: ['id', 'label', 'type', 'description', 'source_sentences', 'aliases'],
       },
     },
     edges: {
@@ -38,8 +42,9 @@ const GEMINI_SCHEMA = {
             enum: RELATION_VOCABULARY,
           },
           evidence: { type: SchemaType.STRING },
+          confidence: { type: SchemaType.NUMBER },
         },
-        required: ['source', 'target', 'relation', 'evidence'],
+        required: ['source', 'target', 'relation', 'evidence', 'confidence'],
       },
     },
   },

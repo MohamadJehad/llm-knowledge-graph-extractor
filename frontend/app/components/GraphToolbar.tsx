@@ -14,6 +14,13 @@ interface Props {
   hiddenRelations: Set<string>;
   onToggleRelation: (rel: string) => void;
   onShowAllRelations: () => void;
+  hideDates: boolean;
+  onToggleHideDates: () => void;
+  showAllLabels: boolean;
+  onToggleShowAllLabels: () => void;
+  hiddenNodes: { id: string; label: string }[];
+  onUnhideNode: (id: string) => void;
+  onShowAllHidden: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFit: () => void;
@@ -70,6 +77,22 @@ export default function GraphToolbar(props: Props) {
         </div>
 
         <div className="toolbar-actions">
+          <button
+            onClick={props.onToggleShowAllLabels}
+            title={props.showAllLabels ? 'Hide edge labels (cleaner)' : 'Show every edge label'}
+            className={`toggle-btn ${props.showAllLabels ? 'active' : ''}`}
+            aria-pressed={props.showAllLabels}
+          >
+            {props.showAllLabels ? 'labels: all' : 'labels: hover'}
+          </button>
+          <button
+            onClick={props.onToggleHideDates}
+            title={props.hideDates ? 'Show date nodes' : 'Hide date nodes (paper-ready view)'}
+            className={`toggle-btn ${props.hideDates ? 'active' : ''}`}
+            aria-pressed={props.hideDates}
+          >
+            {props.hideDates ? 'dates: off' : 'dates: on'}
+          </button>
           <button onClick={props.onZoomOut} title="Zoom out" className="icon-btn" aria-label="Zoom out">−</button>
           <button onClick={props.onZoomIn} title="Zoom in" className="icon-btn" aria-label="Zoom in">+</button>
           <button onClick={props.onFit} title="Fit graph to screen" className="icon-btn" aria-label="Fit to screen">⊡</button>
@@ -104,6 +127,31 @@ export default function GraphToolbar(props: Props) {
                 show all
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {props.hiddenNodes.length > 0 && (
+        <div className="toolbar-row toolbar-hidden-entities">
+          <span className="relation-filter-label">Hidden ({props.hiddenNodes.length})</span>
+          <div className="relation-chips">
+            {props.hiddenNodes.map((n) => (
+              <button
+                key={n.id}
+                className="hidden-entity-chip"
+                onClick={() => props.onUnhideNode(n.id)}
+                title={`Show ${n.label} again`}
+              >
+                {n.label} <span className="hidden-entity-restore">↺</span>
+              </button>
+            ))}
+            <button
+              className="relation-reset"
+              onClick={props.onShowAllHidden}
+              title="Show all hidden entities"
+            >
+              show all
+            </button>
           </div>
         </div>
       )}
