@@ -1,13 +1,3 @@
-% ============================================================================
-%  LLM-Powered Knowledge Graph Extractor from Unstructured Text
-%  Course project, CS585 - Knowledge Engineering
-%
-%  PLACES TO UPDATE WITH YOUR REAL DATA:
-%    - Section 7 (Evaluation): replace the illustrative numbers with the
-%      ones from your own runs.
-%    - Figures: drop in your own PNG exports.
-% ============================================================================
-
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=3cm]{geometry}
@@ -68,10 +58,20 @@
 
 % =============================================================================
 \begin{abstract}
-Building useful knowledge bases from text has been a challenge for a long time. The standard process, known as the Knowledge Acquisition Bottleneck, requires a domain expert to read documents and write down entities and relations by hand. Large Language Models (LLMs) can now do most of this work in a single API call. This paper describes a web application that takes any text and returns an interactive knowledge graph. The system has four main design choices. First, it uses an open vocabulary for entity types with a controlled vocabulary of 23 relations. We started with 15 relations (the typical encyclopedic set) and added 8 more after we noticed that many biographical facts were collapsing to a generic \texttt{related\_to} edge. Second, the prompt tells the model to use \emph{event reification} for biographical events such as births and marriages, so that a person is never directly connected to a date. Third, the prompt asks the model to merge surface mentions of the same entity using an \texttt{aliases} field. Fourth, every edge carries a verbatim evidence sentence, a self-reported confidence in $[0,1]$, and an explicit \texttt{[FALLBACK]} marker when the generic \texttt{related\_to} predicate was used. The visualization shows confidence as a dashed line and fallbacks as a dotted italic line, so the user can see directly where the vocabulary fails. The frontend also includes an \emph{importance-ranked complexity slider} that hides less central entities at lower levels, which is useful for paper-ready summary views. The system works with four LLM providers (Anthropic Claude, OpenAI GPT, Google Gemini, and local Ollama models) behind one shared schema, and exports the graph as JSON, PNG, or RDF/Turtle.
+Building useful knowledge bases from text has been a challenge for a long time. The standard process, known as the Knowledge Acquisition Bottleneck, requires a domain expert to read documents and write down entities and relations by hand. Large Language Models (LLMs) can now do most of this work in a single API call. This paper describes a web application that takes any text and returns an interactive knowledge graph. The system has four main design choices. First, it uses an open vocabulary for entity types with a controlled vocabulary of 23 relations. We started with 15 relations (the typical encyclopedic set) and added 8 more after we noticed that many biographical facts were collapsing to a generic \texttt{related\_to} edge. Second, the prompt tells the model to use \emph{event reification} for biographical events such as births and marriages, so that a person is never directly connected to a date. Third, the prompt asks the model to merge surface mentions of the same entity using an \texttt{aliases} field. Fourth, every edge carries a verbatim evidence sentence and a self-reported confidence in $[0,1]$. Additionally, The frontend itself also includes an \emph{importance-ranked complexity slider} that hides less central entities at lower levels, which is very useful for paper-ready summary views. The system is designed to work with four LLM providers (Anthropic Claude, OpenAI GPT, Google Gemini, and local Ollama models) behind one shared schema, and exports the graph as JSON, PNG, or RDF/Turtle.
 
 
 \end{abstract}
+
+% =============================================================================
+% Table of contents settings: keep the same typographic style as section
+% headings (large bold), and tighten the spacing so the ToC stays on one page.
+\renewcommand{\contentsname}{\normalfont\large\bfseries Contents}
+{
+  \setlength{\parskip}{0pt}
+  \tableofcontents
+}
+\vspace{1em}
 
 % =============================================================================
 \section{Introduction}\label{sec:intro}
@@ -84,12 +84,10 @@ The main contributions are:
 \begin{enumerate}[leftmargin=1.8em]
   \item A hybrid extraction schema (Section~\ref{sec:design}) with open entity types and 23 controlled relations.
   \item A decision-rule system prompt (Section~\ref{sec:prompt}) that tells the model which relation to use for each common pattern, and that asks it to do event reification, alias merging, and generic/specific deduplication during extraction.
-  \item A per-edge audit trail (Sections~\ref{sec:design},~\ref{sec:viz}): every edge has a verbatim evidence sentence, a confidence value in $[0,1]$, and a \texttt{[FALLBACK]} prefix when the model used the generic relation.
+  \item A per-edge audit trail (Sections~\ref{sec:design},~\ref{sec:viz}): every edge has a verbatim evidence sentence and a confidence value in $[0,1]$.
   \item An interactive visualization (Section~\ref{sec:viz}) with degree-based node sizing, an ego-network highlight on hover, an importance-ranked complexity slider, and several filters that compose together.
   \item A provider-agnostic backend (Section~\ref{sec:architecture}) covering Anthropic, OpenAI, Gemini, and Ollama behind the same schema, with RDF/Turtle export.
 \end{enumerate}
-
-The rest of the paper is structured as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:architecture} describes the architecture. Section~\ref{sec:design} explains the knowledge model and Section~\ref{sec:prompt} the prompt. Section~\ref{sec:viz} describes the visualization. Section~\ref{sec:evaluation} reports a qualitative evaluation. Section~\ref{sec:discussion} discusses limitations. Section~\ref{sec:conclusion} concludes.
 
 % =============================================================================
 \section{Related Work}\label{sec:related}
@@ -112,10 +110,7 @@ Noy and McGuinness's \emph{Ontology Development 101}~\cite{noy2001ontology} expl
 Ji et al.~\cite{ji2022survey} survey knowledge graph construction and completion. They list entity resolution (deciding when two surface forms refer to the same entity) as one of the recurring failure modes of automated pipelines. The Maria Sk\l odowska / Marie Curie case from their survey is exactly the problem we address with the \texttt{aliases} field (Section~\ref{sec:aliases}).
 
 \paragraph{Knowledge graph summarization.}
-Visualization research has noticed for a long time that even small KGs become hard to read after a few dozen nodes. Liu et al.~\cite{liu2018kgsummarization} review KG construction techniques and discuss summarization options based on structural features (degree, centrality) or semantic ones (query relevance, ontology depth). Our complexity slider (Section~\ref{sec:complexity}) is structural: it ranks entities by degree plus mention frequency, which is simple to compute and easy to explain.
-
-\paragraph{Provenance.}
-W3C's PROV-O~\cite{lebo2013provO} and related work all stress that being able to trace a fact back to its source is necessary for trustworthy reuse. We follow a lightweight version of this: every node carries source sentences, every edge carries an evidence sentence and a confidence score, and the RDF export keeps these using standard \texttt{rdf:Statement} reification.
+Visualization research has noticed for a long time that even small KGs become hard to read after a few dozen nodes. Liu et al.~\cite{liu2016kgconstruction} review KG construction techniques and discuss summarization options based on structural features (degree, centrality) or semantic ones (query relevance, ontology depth). Our complexity slider (Section~\ref{sec:complexity}) is structural: it ranks entities by degree plus mention frequency, which is simple to compute and easy to explain.
 
 % =============================================================================
 \section{System Architecture}\label{sec:architecture}
@@ -166,7 +161,7 @@ The full list is:
 \texttt{works\_for}, \texttt{member\_of}, \texttt{founded\_by}, \texttt{located\_in}, \texttt{headquartered\_in}, \texttt{part\_of}, \texttt{created\_by}, \texttt{developed\_by}, \texttt{discovered\_by}, \texttt{causes}, \texttt{influences}, \texttt{occurred\_at}, \texttt{occurred\_on}, \texttt{has\_property}, \texttt{related\_to}, \texttt{opposes}, \texttt{born\_in}, \texttt{lived\_in}, \texttt{married\_to}, \texttt{studied\_at}, \texttt{awarded}, \texttt{awarded\_for}, \texttt{co\_recipient\_with}.
 \end{quote}
 
-A \texttt{related\_to} relation is included as a deliberate fallback: when no other relation in the list fits a fact in the text, the model uses this one and prefixes the evidence string with \texttt{[FALLBACK]} (see Section~\ref{sec:fallback}). The visualization shows fallback edges in a distinct style, which makes vocabulary gaps visible and easy to audit for any new domain.
+A generic \texttt{related\_to} relation is included so the model can still emit a fact when none of the other 22 relations fits.
 
 \subsection{Output Schema}
 
@@ -201,7 +196,7 @@ Beyond listing the relation vocabulary, the prompt does five things, each one de
 
 \subsection{Decision Rules for Each Relation}\label{sec:decision-rules}
 
-To prevent over-use of the generic \texttt{related\_to} fallback, the prompt includes short decision rules for the more easily confused relations. For example:
+To prevent over-use of the generic \texttt{related\_to} relation, the prompt includes short decision rules for the more easily confused relations. For example:
 
 \begin{quote}\small\itshape
 A \textsc{person} born in a place $\rightarrow$ \texttt{born\_in} (NEVER \texttt{located\_in}).\\
@@ -224,11 +219,9 @@ When the same entity has multiple surface names (``Maria Sk\l odowska'' / ``Mari
 
 When a class and its instances both appear (``the Nobel Prize'' alongside ``the Nobel Prize in Physics''), the prompt asks the model to prefer the specific instances and link them with \texttt{part\_of} to the class node only if the class is worth keeping on its own.
 
-\subsection{Confidence and the \texttt{[FALLBACK]} Marker}\label{sec:fallback}
+\subsection{Confidence}\label{sec:confidence}
 
 Each edge carries a self-reported \texttt{confidence} value in $[0,1]$: $1.0$ for relations stated with an unambiguous verb, $0.7$ for relations clearly implied, $0.4$ for relations inferred from context. Edges with confidence below $0.6$ render as dashed lines.
-
-In parallel, when the model uses the generic \texttt{related\_to} relation, the evidence string must start with the token \texttt{[FALLBACK]}. These edges render as dotted italic muted lines with a \texttt{fallback} badge in the side panel. A graph dominated by such edges signals that the current vocabulary does not fit the input domain.
 
 % =============================================================================
 \section{Interactive Visualization}\label{sec:viz}
@@ -237,7 +230,7 @@ The frontend is a single page that puts the text input and provider menus on the
 
 \subsection{Visual Encoding}
 
-Node color encodes the entity type (Person, Organization, Location, Concept, Event, plus a default). Node size is proportional to degree, so the most central entities visually stand out. Edge style encodes confidence: solid for high-confidence vocabulary edges, dashed for low confidence, and dotted-italic-muted for \texttt{[FALLBACK]} edges. Event-reification nodes are rendered smaller and semi-transparent, so they fade behind the real entities. Edge labels are hidden by default and revealed only on hover, otherwise the graph becomes unreadable when there are many edges.
+Node color encodes the entity type (Person, Organization, Location, Concept, Event, plus a default). Node size is proportional to degree, so the most central entities visually stand out. Edge style encodes confidence: solid for high-confidence edges and dashed for low confidence. Event-reification nodes are rendered smaller and semi-transparent, so they fade behind the real entities. Edge labels are hidden by default and revealed only on hover, otherwise the graph becomes unreadable when there are many edges.
 
 \subsection{Layouts}
 
@@ -264,7 +257,7 @@ The mention term makes real entities score higher than event-reification nodes (
 
 \subsection{Ego Network and the Side Panel}
 
-Hovering a node fades the rest of the graph and highlights its closed neighborhood. Clicking a node opens the side panel, which shows the entity's label, any aliases, type, description, source sentences, and the lists of incoming and outgoing relations. Each relation row has a confidence badge and, for \texttt{[FALLBACK]} edges, a \texttt{fallback} marker.
+Hovering a node fades the rest of the graph and highlights its closed neighborhood. Clicking a node opens the side panel, which shows the entity's label, any aliases, type, description, source sentences, and the lists of incoming and outgoing relations. Each relation row has a confidence badge.
 
 \subsection{Export}
 
@@ -273,19 +266,19 @@ Three buttons in the graph header: JSON (the normalized graph), RDF/Turtle (with
 % =============================================================================
 \section{Qualitative Evaluation}\label{sec:evaluation}
 
-We evaluated the system on three passages of different character: a simple organizational sentence, a longer encyclopedic paragraph on climate science, and a biographical paragraph that uses an alias. The outputs were inspected manually for entity coverage, relation correctness, alias resolution, and fallback rate. Table~\ref{tab:results} summarizes the size of each extracted graph.
+We evaluated the system on three passages of different character: a simple organizational sentence, a longer encyclopedic paragraph on climate science, and a biographical paragraph that uses an alias. The outputs were inspected manually for entity coverage, relation correctness, and alias resolution. Table~\ref{tab:results} summarizes the size of each extracted graph.
 
 \begin{table}[ht]
 \centering\small
 \caption{Extraction results on three sample passages (Microsoft and Mark Twain with Claude Sonnet 4.5; Climate Science with Gemini 2.5 Flash).}
 \label{tab:results}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccc}
 \toprule
-\textbf{Passage} & \textbf{Nodes} & \textbf{Edges} & \textbf{\texttt{[FALLBACK]}} & \textbf{Aliases} \\
+\textbf{Passage} & \textbf{Nodes} & \textbf{Edges} & \textbf{Aliases} \\
 \midrule
-Microsoft       & 6   & 5   & 0       & --- \\
-Climate Science & 25  & 20  & several & --- \\
-Mark Twain      & 14  & 17  & 1       & 1 (Clemens) \\
+Microsoft       & 6   & 5   & --- \\
+Climate Science & 25  & 20  & --- \\
+Mark Twain      & 14  & 17  & 1 (Clemens) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -294,7 +287,7 @@ Mark Twain      & 14  & 17  & 1       & 1 (Clemens) \\
 
 \emph{``Microsoft is headquartered in Redmond, Washington. Bill Gates founded the company, which develops Windows and Office.''}
 
-The extraction is clean and contains no fallbacks: \texttt{microsoft headquartered\_in redmond}, \texttt{redmond located\_in washington}, \texttt{microsoft founded\_by bill\_gates}, \texttt{windows developed\_by microsoft}, \texttt{office developed\_by microsoft}. Microsoft is connected to four of the five other entities (hub ratio $= 0.8$), so the page automatically picks the concentric layout. The result confirms that the controlled vocabulary covers simple organizational text without any fallback.
+The extraction is clean: \texttt{microsoft headquartered\_in redmond}, \texttt{redmond located\_in washington}, \texttt{microsoft founded\_by bill\_gates}, \texttt{windows developed\_by microsoft}, \texttt{office developed\_by microsoft}. Microsoft is connected to four of the five other entities (hub ratio $= 0.8$), so the page automatically picks the concentric layout. The result confirms that the controlled vocabulary covers simple organizational text.
 
 \subsection{Sample 2: Climate Science}
 
@@ -302,7 +295,7 @@ The extraction is clean and contains no fallbacks: \texttt{microsoft headquarter
 
 The second passage is a short paragraph on climate science taken from a popular-science introduction. The extraction with Gemini 2.5 Flash returns 25 entities and 20 relations in about 45 seconds. The type mix is varied (2 organizations, 1 location, 7 concepts, 2 events, 13 other), which is what the open-type design is built for: the model is not forced to pick from a closed list and uses a generic \emph{Other} type when nothing precise fits.
 
-The relations show a clear chain: \emph{enhanced greenhouse effect} \texttt{causes} \emph{global warming}, which in turn \texttt{causes} \emph{rising sea levels}, \emph{extreme weather}, and \emph{ocean acidification}. Compositional facts are captured with \texttt{part\_of} (\emph{methane}, \emph{carbon dioxide}, and \emph{water vapor} as part of \emph{greenhouse gases}). Two events are reified: the \emph{establishment of the IPCC} node carries an \texttt{occurred\_on} edge to the date \emph{1988} and a \texttt{founded\_by} edge to the \emph{United Nations}, which is exactly the n-ary pattern the prompt is designed to produce. A few \texttt{related\_to} edges remain (for example, from \emph{scientific evidence} to \emph{climate change}), which means the controlled vocabulary does not cover every relation in this domain and the \texttt{[FALLBACK]} audit marker correctly flags those spots.
+The relations show a clear chain: \emph{enhanced greenhouse effect} \texttt{causes} \emph{global warming}, which in turn \texttt{causes} \emph{rising sea levels}, \emph{extreme weather}, and \emph{ocean acidification}. Compositional facts are captured with \texttt{part\_of} (\emph{methane}, \emph{carbon dioxide}, and \emph{water vapor} as part of \emph{greenhouse gases}). Two events are reified: the \emph{establishment of the IPCC} node carries an \texttt{occurred\_on} edge to the date \emph{1988} and a \texttt{founded\_by} edge to the \emph{United Nations}, which is exactly the n-ary pattern the prompt is designed to produce. A few \texttt{related\_to} edges remain (for example, from \emph{scientific evidence} to \emph{climate change}), since the controlled vocabulary does not cover every relation in this domain.
 
 This passage is also a good test of the importance-ranked complexity slider. Since $\lceil 25/5 \rceil = 5$, five levels are available; at level 1 the user sees only the most central nodes such as \emph{greenhouse effect}, \emph{global warming}, and \emph{greenhouse gases}, and at level 5 the full graph is shown for detailed inspection.
 
@@ -310,12 +303,12 @@ This passage is also a good test of the importance-ranked complexity slider. Sin
 
 \emph{``Mark Twain, born Samuel Clemens in Missouri, wrote The Adventures of Tom Sawyer and Adventures of Huckleberry Finn. He married Olivia Langdon in 1870, and the couple settled in Connecticut. Twain received an honorary doctorate from Oxford University in 1907.''}
 
-The model emits a single \texttt{mark\_twain} node with \texttt{Samuel Clemens} stored as an alias, which is the expected outcome of the alias-resolution rule in the prompt. The biographical relations fire as designed: \texttt{married\_to} (Olivia Langdon, symmetric in both directions), \texttt{created\_by} for the two novels, and \texttt{awarded} for the honorary doctorate. Birth, marriage, settlement, and award are reified as their own event nodes, each carrying \texttt{occurred\_on} (date) and \texttt{occurred\_at} (place) attributes, which avoids the type errors of attaching dates directly to Twain. One \texttt{[FALLBACK]} edge connects the award event to \texttt{Oxford University} --- the vocabulary has no precise \texttt{awarded\_by} relation, and the audit marker correctly highlights that gap.
+The model emits a single \texttt{mark\_twain} node with \texttt{Samuel Clemens} stored as an alias, which is the expected outcome of the alias-resolution rule in the prompt. The biographical relations fire as designed: \texttt{married\_to} (Olivia Langdon, symmetric in both directions), \texttt{created\_by} for the two novels, and \texttt{awarded} for the honorary doctorate. Birth, marriage, settlement, and award are reified as their own event nodes, each carrying \texttt{occurred\_on} (date) and \texttt{occurred\_at} (place) attributes, which avoids the type errors of attaching dates directly to Twain. One \texttt{related\_to} edge connects the award event to \texttt{Oxford University}, since the vocabulary has no precise \texttt{awarded\_by} relation.
 
 % =============================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-We have built an LLM-powered knowledge graph extractor that takes any text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, self-reported confidence, and an explicit \texttt{[FALLBACK]} marker. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, four orthogonal filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
+We have built an LLM-powered knowledge graph extractor that takes any text and produces an interactive graph in seconds. The extraction layer uses a hybrid model (open entity types, 23 controlled relations), in-prompt event reification, alias-based entity merging, generic/specific deduplication, and self-reported confidence. The interaction layer uses degree-based node sizing, an ego-network highlight on hover, five layouts with a smart default, four orthogonal filters, an importance-ranked complexity slider, and JSON / RDF / PNG export.
 
 The main lesson from the project is that classical knowledge-engineering problems do not disappear when you use a modern solutions like using LLMs. The vocabulary still drifts, n-ary relations still need reification, the same entity still appears under multiple names, and a graph that does not show its uncertainty is still hard to trust. What changes is who does the work: a single LLM call now does most of what a human knowledge engineer used to do by hand, and the engineer's job becomes designing the rules (the vocabulary, the prompt, the audit) that make the extraction trustworthy.
 
@@ -345,17 +338,14 @@ Noy, N.F., McGuinness, D.L.: Ontology Development 101: A Guide to Creating Your 
 \bibitem{ji2022survey}
 Ji, S., Pan, S., Cambria, E., Marttinen, P., Yu, P.S.: A Survey on Knowledge Graphs: Representation, Acquisition, and Applications. IEEE Transactions on Neural Networks and Learning Systems \textbf{33}(2), 494--514 (2022).
 
-\bibitem{liu2018kgsummarization}
+\bibitem{liu2016kgconstruction}
 Liu, Q., Li, Y., Duan, H., Liu, Y., Qin, Z.: Knowledge Graph Construction Techniques. Journal of Computer Research and Development \textbf{53}(3), 582--600 (2016).
 
-\bibitem{lebo2013provO}
-Lebo, T., Sahoo, S., McGuinness, D., et al.: PROV-O: The PROV Ontology. W3C Recommendation (2013). \url{https://www.w3.org/TR/prov-o/}
-
 \bibitem{anthropic2024toolUse}
-Anthropic: Tool use with Claude. Anthropic API documentation (2024). \url{https://docs.anthropic.com/claude/docs/tool-use}
+Anthropic: Tool Use (Function Calling). Anthropic Developer Documentation (2024). \url{https://docs.anthropic.com/en/docs/build-with-claude/tool-use}
 
 \bibitem{openai2024structured}
-OpenAI: Structured Outputs. OpenAI API documentation (2024). \url{https://platform.openai.com/docs/guides/structured-outputs}
+OpenAI: Introducing Structured Outputs in the API. OpenAI Blog (2024). \url{https://openai.com/index/introducing-structured-outputs-in-the-api/}
 \end{thebibliography}
 
 \end{document}
